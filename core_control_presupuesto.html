@@ -1932,9 +1932,23 @@ async function exportToExcel() {
       'Editado en Maestro': ov ? 'Sí' : 'No', 'Última edición por': (ov && ov.updated_by) || '',
     };
   });
+  const routesByKey = new Map(DATA.routes.map(r => [routeKey(r), r]));
   const historialRows = [];
   state.overrides.forEach((ov, key) => {
-    ov.historial.forEach(h => historialRows.push({ 'Proveedor · Ruta': key.replace('|||', ' — '), 'Tarifa': h.tarifa_nueva, '% Adjudicación': h.pct_adj_nueva, 'Vigencia desde': h.fecha_inicio, 'Vigencia hasta': h.fecha_vencimiento, 'Guardado el': h.creado, 'Guardado por': h.updated_by || '' }));
+    const r = routesByKey.get(key);
+    ov.historial.forEach((h, i) => {
+      // La "versión anterior" de cada cambio: la versión previa del historial,
+      // o si es el primer cambio registrado, la Tarifa/% Adjudicación inicial
+      // de la ruta (el punto de partida antes de cualquier edición en Maestro).
+      const prev = i > 0 ? ov.historial[i - 1] : (r ? { tarifa_nueva: r.tarifa_inicial, pct_adj_nueva: r.pct_adj_inicial } : null);
+      historialRows.push({
+        'Proveedor · Ruta': key.replace('|||', ' — '),
+        'Tarifa anterior (US$)': prev ? prev.tarifa_nueva : '', '% Adj. anterior': prev ? prev.pct_adj_nueva : '',
+        'Tarifa nueva (US$)': h.tarifa_nueva, '% Adj. nueva': h.pct_adj_nueva,
+        'Vigencia desde': h.fecha_inicio, 'Vigencia hasta': h.fecha_vencimiento,
+        'Guardado el': h.creado, 'Guardado por': h.updated_by || '',
+      });
+    });
   });
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Tarifas vigentes');
@@ -2043,7 +2057,10 @@ function renderMasterTable() {
         <div class="history-wrap">
           <div class="history-title">Historial de versiones</div>
           <div class="history-list">
-            ${ov.historial.map(h => `<div class="h-row"><span class="h-date">${h.creado}</span><span>Tarifa ${fmtUSD(h.tarifa_nueva,{decimals:2})} · % Adj ${fmtPct(h.pct_adj_nueva)} · vigencia ${h.fecha_inicio} → ${h.fecha_vencimiento}${h.updated_by ? ` · por <b>${h.updated_by}</b>` : ''}</span></div>`).join('')}
+            ${ov.historial.map((h, i) => {
+              const prev = i > 0 ? ov.historial[i - 1] : { tarifa_nueva: r.tarifa_inicial, pct_adj_nueva: r.pct_adj_inicial };
+              return `<div class="h-row"><span class="h-date">${h.creado}</span><span>Tarifa ${fmtUSD(prev.tarifa_nueva,{decimals:2})} → ${fmtUSD(h.tarifa_nueva,{decimals:2})} · % Adj ${fmtPct(prev.pct_adj_nueva)} → ${fmtPct(h.pct_adj_nueva)} · vigencia ${h.fecha_inicio} → ${h.fecha_vencimiento}${h.updated_by ? ` · por <b>${h.updated_by}</b>` : ''}</span></div>`;
+            }).join('')}
           </div>
         </div>` : ''}
         <div class="field-actions">
