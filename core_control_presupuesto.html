@@ -1731,11 +1731,13 @@ async function loadOverridesFromSupabase() {
       (histByKey[h.route_key] = histByKey[h.route_key] || []).push({
         tarifa_nueva: Number(h.tarifa_nueva), pct_adj_nueva: Number(h.pct_adj_nueva),
         fecha_inicio: h.fecha_inicio, fecha_vencimiento: h.fecha_vencimiento, creado: (h.creado_en || '').slice(0, 10),
+        updated_by: h.updated_by || '',
       });
     });
     (overrides || []).forEach(o => {
       state.overrides.set(o.route_key, {
         tarifa_actual: Number(o.tarifa_actual), pct_adj_nueva: Number(o.pct_adj_nueva),
+        updated_by: o.updated_by || '',
         historial: histByKey[o.route_key] || [],
       });
     });
@@ -1753,18 +1755,36 @@ async function saveOverrideToSupabase(key, r, entry) {
       route_key: key, proveedor: r.proveedor, ruta: r.ruta,
       tarifa_nueva: entry.tarifa_nueva, pct_adj_nueva: entry.pct_adj_nueva,
       fecha_inicio: entry.fecha_inicio, fecha_vencimiento: entry.fecha_vencimiento,
+      updated_by: entry.updated_by || null,
     });
     const { error } = await sb.from('tarifa_overrides').upsert({
       route_key: key, proveedor: r.proveedor, ruta: r.ruta,
       tarifa_actual: entry.tarifa_nueva, pct_adj_nueva: entry.pct_adj_nueva,
       fecha_inicio: entry.fecha_inicio, fecha_vencimiento: entry.fecha_vencimiento,
-      updated_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(), updated_by: entry.updated_by || null,
     });
     if (error) throw error;
     setSyncStatus('✓ Guardado en Supabase');
   } catch (err) {
     console.error('Error guardando tarifa en Supabase:', err);
     setSyncStatus('⚠ No se pudo guardar en Supabase (quedó solo local) — revisa la consola');
+  }
+}
+
+// Popup que pide el nombre de quien guarda el cambio (queda registrado junto
+// con el rol activo en el historial de esa tarifa). Precarga el último
+// nombre usado en este navegador para no tener que retiparlo cada vez.
+function askWhoIsSaving() {
+  let last = '';
+  try { last = localStorage.getItem('core_updated_by') || ''; } catch (e) {}
+  const roleLabel = state.role === 'jefe' ? 'Jefe' : 'Coordinador';
+  while (true) {
+    const name = window.prompt(`¿Quién guarda este cambio? (perfil: ${roleLabel})\n\nEscribe tu nombre para dejarlo registrado en el historial.`, last);
+    if (name === null) return null; // canceló
+    const trimmed = name.trim();
+    if (!trimmed) { alert('El nombre es obligatorio para guardar.'); continue; }
+    try { localStorage.setItem('core_updated_by', trimmed); } catch (e) {}
+    return trimmed;
   }
 }
 
@@ -1883,12 +1903,12 @@ function exportToExcel() {
       'Viajes estimados': r.viajes_estimados, 'Tarifa inicial (US$)': r.tarifa_inicial, '% Adj. inicial': r.pct_adj_inicial,
       'Tarifa vigente (US$)': ov ? ov.tarifa_actual : r.tarifa_actual, '% Adj. vigente': ov ? ov.pct_adj_nueva : r.pct_adj_nueva,
       'Vigencia desde': vigencia ? vigencia.fecha_inicio : '', 'Vigencia hasta': vigencia ? vigencia.fecha_vencimiento : '',
-      'Editado en Maestro': ov ? 'Sí' : 'No',
+      'Editado en Maestro': ov ? 'Sí' : 'No', 'Última edición por': (ov && ov.updated_by) || '',
     };
   });
   const historialRows = [];
   state.overrides.forEach((ov, key) => {
-    ov.historial.forEach(h => historialRows.push({ 'Proveedor · Ruta': key.replace('|||', ' — '), 'Tarifa': h.tarifa_nueva, '% Adjudicación': h.pct_adj_nueva, 'Vigencia desde': h.fecha_inicio, 'Vigencia hasta': h.fecha_vencimiento, 'Guardado el': h.creado }));
+    ov.historial.forEach(h => historialRows.push({ 'Proveedor · Ruta': key.replace('|||', ' — '), 'Tarifa': h.tarifa_nueva, '% Adjudicación': h.pct_adj_nueva, 'Vigencia desde': h.fecha_inicio, 'Vigencia hasta': h.fecha_vencimiento, 'Guardado el': h.creado, 'Guardado por': h.updated_by || '' }));
   });
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Tarifas vigentes');
@@ -1971,7 +1991,7 @@ function renderMasterTable() {
             <span class="m-sub">Viajes estimados (fijo): <b>${fmtNum(r.viajes_estimados,2)}</b></span>
             <span class="m-sub">Tarifa inicial (fija): <b>${fmtUSD(r.tarifa_inicial,{decimals:2})}</b></span>
             <span class="m-sub">% Adj. inicial (fijo): <b>${fmtPct(r.pct_adj_inicial)}</b></span>
-            <span class="m-sub vigente">Vigente: <b>${fmtUSD(currentTarifa,{decimals:2})} · ${fmtPct(currentPct)}</b>${vigencia ? ` · ${vigencia.fecha_inicio} → ${vigencia.fecha_vencimiento}` : ''}</span>
+            <span class="m-sub vigente">Vigente: <b>${fmtUSD(currentTarifa,{decimals:2})} · ${fmtPct(currentPct)}</b>${vigencia ? ` · ${vigencia.fecha_inicio} → ${vigencia.fecha_vencimiento}` : ''}${ov && ov.updated_by ? ` · por <b>${ov.updated_by}</b>` : ''}</span>
           </div>
         </div>
         <button class="edit-btn ${isOpen ? 'primary' : ''}" data-action="toggle-edit" data-key="${encodeURIComponent(key)}">${isOpen ? 'Cerrar' : 'Editar'}</button>
@@ -1995,7 +2015,7 @@ function renderMasterTable() {
         <div class="history-wrap">
           <div class="history-title">Historial de versiones</div>
           <div class="history-list">
-            ${ov.historial.map(h => `<div class="h-row"><span class="h-date">${h.creado}</span><span>Tarifa ${fmtUSD(h.tarifa_nueva,{decimals:2})} · % Adj ${fmtPct(h.pct_adj_nueva)} · vigencia ${h.fecha_inicio} → ${h.fecha_vencimiento}</span></div>`).join('')}
+            ${ov.historial.map(h => `<div class="h-row"><span class="h-date">${h.creado}</span><span>Tarifa ${fmtUSD(h.tarifa_nueva,{decimals:2})} · % Adj ${fmtPct(h.pct_adj_nueva)} · vigencia ${h.fecha_inicio} → ${h.fecha_vencimiento}${h.updated_by ? ` · por <b>${h.updated_by}</b>` : ''}</span></div>`).join('')}
           </div>
         </div>` : ''}
         <div class="field-actions">
@@ -2038,11 +2058,15 @@ function wireRowEvents() {
       if (fin <= inicio) { errEl.textContent = 'La fecha de vencimiento debe ser posterior a la fecha de inicio.'; errEl.style.display = 'block'; return; }
       errEl.style.display = 'none';
 
+      const updatedBy = askWhoIsSaving();
+      if (updatedBy === null) return; // canceló el popup — no se guarda nada
+
       const pct = pctRaw / 100;
       const existing = state.overrides.get(key) || { historial: [] };
-      const entry = { tarifa_nueva: tarifa, pct_adj_nueva: pct, fecha_inicio: inicio, fecha_vencimiento: fin, creado: todayISO() };
+      const entry = { tarifa_nueva: tarifa, pct_adj_nueva: pct, fecha_inicio: inicio, fecha_vencimiento: fin, creado: todayISO(), updated_by: updatedBy };
       existing.tarifa_actual = tarifa;
       existing.pct_adj_nueva = pct;
+      existing.updated_by = updatedBy;
       existing.historial = [...existing.historial, entry];
       state.overrides.set(key, existing);
       state.openKey = null;
