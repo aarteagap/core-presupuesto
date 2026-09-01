@@ -1,6 +1,8 @@
--- COMPASS — Control de Presupuesto de Transporte
--- Fase 2: esquema de tarifas vigentes + historial de versiones.
+-- CORE — Control de Presupuesto de Transporte
+-- Fase 2: esquema de tarifas vigentes + historial de versiones + Horizon.
 -- Ejecutar completo en: Supabase → SQL Editor → New query → Run.
+-- Seguro de volver a correr completo (idempotente): las políticas se
+-- borran antes de recrearse, así que un segundo Run no falla.
 
 create table if not exists public.tarifa_overrides (
   route_key        text primary key,          -- "PROVEEDOR|||RUTA"
@@ -35,6 +37,9 @@ create index if not exists idx_historial_route_key
 alter table public.tarifa_overrides enable row level security;
 alter table public.tarifa_overrides_historial enable row level security;
 
+drop policy if exists "anon select overrides" on public.tarifa_overrides;
+drop policy if exists "anon upsert overrides" on public.tarifa_overrides;
+drop policy if exists "anon update overrides" on public.tarifa_overrides;
 create policy "anon select overrides" on public.tarifa_overrides
   for select using (true);
 create policy "anon upsert overrides" on public.tarifa_overrides
@@ -42,6 +47,8 @@ create policy "anon upsert overrides" on public.tarifa_overrides
 create policy "anon update overrides" on public.tarifa_overrides
   for update using (true);
 
+drop policy if exists "anon select historial" on public.tarifa_overrides_historial;
+drop policy if exists "anon insert historial" on public.tarifa_overrides_historial;
 create policy "anon select historial" on public.tarifa_overrides_historial
   for select using (true);
 create policy "anon insert historial" on public.tarifa_overrides_historial
@@ -49,8 +56,12 @@ create policy "anon insert historial" on public.tarifa_overrides_historial
 
 -- Habilita Realtime para que el Dashboard reciba cambios de tarifa
 -- al instante sin recargar (opcional, ya usamos postMessage como
--- respaldo dentro de la misma sesión del navegador).
-alter publication supabase_realtime add table public.tarifa_overrides;
+-- respaldo dentro de la misma sesión del navegador). Falla en silencio
+-- (con NOTICE, no ERROR) si ya estaba agregada.
+do $$ begin
+  alter publication supabase_realtime add table public.tarifa_overrides;
+exception when duplicate_object then null;
+end $$;
 
 -- =====================================================================
 -- Fase 2b: FCL de Horizon (despachos), cargado desde el navegador
@@ -70,6 +81,10 @@ create table if not exists public.horizon_fcl (
 
 alter table public.horizon_fcl enable row level security;
 
+drop policy if exists "anon select horizon_fcl" on public.horizon_fcl;
+drop policy if exists "anon upsert horizon_fcl" on public.horizon_fcl;
+drop policy if exists "anon update horizon_fcl" on public.horizon_fcl;
+drop policy if exists "anon delete horizon_fcl" on public.horizon_fcl;
 create policy "anon select horizon_fcl" on public.horizon_fcl
   for select using (true);
 create policy "anon upsert horizon_fcl" on public.horizon_fcl
@@ -79,4 +94,7 @@ create policy "anon update horizon_fcl" on public.horizon_fcl
 create policy "anon delete horizon_fcl" on public.horizon_fcl
   for delete using (true);
 
-alter publication supabase_realtime add table public.horizon_fcl;
+do $$ begin
+  alter publication supabase_realtime add table public.horizon_fcl;
+exception when duplicate_object then null;
+end $$;
