@@ -100,8 +100,10 @@
   .header-title span { color: var(--text); }
   .header-sub { font-size: 11px; color: var(--text3); margin-top: 1px; }
   .header-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .badge { font-family: var(--mono); font-size: 10px; font-weight: 600; padding: 3px 9px; border-radius: 20px; border: 1px solid var(--border); color: var(--text2); }
+  .badge { font-family: var(--mono); font-size: 10px; font-weight: 600; padding: 3px 9px; border-radius: 20px; border: 1px solid var(--border); color: var(--text2); cursor: default; }
   .badge.mock { border-color: var(--yellow); color: var(--yellow-bright); }
+  .badge.live { border-color: var(--green); color: var(--green-bright); }
+  .badge.offline { border-color: var(--red); color: var(--red-bright); }
   .header-btn {
     font-family: var(--mono); font-size: 10.5px; font-weight: 600; padding: 6px 13px; border-radius: 999px; border: 1px solid var(--border2);
     background: var(--bg3); color: var(--text); cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all .15s; text-decoration: none;
@@ -143,6 +145,7 @@
   .y-scale-control input[type="number"]:focus { border-color: var(--blue); }
   .trend-wrap { position: relative; height: 340px; }
   .trend-legend-note { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px; font-size: 10px; color: var(--text3); font-family: var(--mono); }
+  .trend-legend-note button.legend-toggle { border: none; background: none; padding: 0; display: inline-flex; align-items: center; font: inherit; color: inherit; }
   .legend-dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
 
   /* custom tooltip */
@@ -354,15 +357,13 @@
   .badge { padding: 6px 10px; border-radius: 9px; background: var(--bg3); }
   .badge.mock { border-color: rgba(245,159,58,.3); background: var(--yellow-dim); }
   .header-btn {
-    min-height: 34px; padding: 7px 12px; border-radius: 10px; background: transparent; border-color: var(--border);
-    color: var(--text2); letter-spacing: .01em;
+    min-height: 34px; padding: 7px 14px; border-radius: 999px; background: var(--bg3); border: none;
+    color: var(--text); letter-spacing: .01em; font-weight: 600;
   }
-  .header-btn::after { content: '\2197'; font-size: 12px; transition: transform .18s ease; }
-  .header-btn:hover { color: var(--text); background: var(--bg3); border-color: var(--border2); transform: translateY(-1px); }
-  .header-btn:hover::after { transform: translate(2px,-2px); }
+  .header-btn:hover { color: var(--text); background: var(--bg4); transform: translateY(-1px); }
   .theme-switch { margin-left: 2px; padding-left: 10px; border-left: 1px solid var(--border); }
   .ios-toggle { width: 44px; height: 26px; background: var(--bg4); box-shadow: inset 0 0 0 1px var(--border); }
-  .ios-toggle.on { background: linear-gradient(135deg, var(--blue), var(--purple-bright)); }
+  .ios-toggle.on { background: var(--green); }
   .ios-toggle .knob { top: 3px; left: 3px; width: 20px; height: 20px; box-shadow: 0 2px 8px rgba(0,0,0,.3); }
   .ios-toggle.on .knob { transform: translateX(18px); }
 
@@ -412,7 +413,11 @@
   .trend-note { border: 1px solid var(--border); border-radius: 999px; padding: 5px 9px; background: var(--bg3); }
   .trend-wrap { height: 390px; }
   .trend-legend-note { gap: 10px; margin-top: 12px; }
-  .trend-legend-note > span { padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg3); }
+  .trend-legend-note > .legend-toggle { padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg3); }
+  .legend-toggle { font-family: var(--mono); font-size: 10px; color: var(--text3); cursor: pointer; transition: opacity .15s ease; }
+  .legend-toggle:hover { border-color: var(--border2); }
+  .legend-toggle.off { opacity: .38; }
+  .legend-toggle.off .legend-dot { filter: grayscale(1); }
   .chart-tooltip { border-radius: 14px; backdrop-filter: blur(18px); }
 
   .filter-bar { position: sticky; top: 78px; z-index: 60; gap: 8px; border-radius: 18px; padding: 12px; }
@@ -515,12 +520,12 @@
       <svg viewBox="0 0 24 24" fill="none"><path d="M5 17.5 12.5 5l1.8 5.1 5.2 1.9-12.6 7.2 2-5.2L5 17.5Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="m10.2 14.3 4.1-4.1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
     </div>
     <div>
-      <div class="header-title">HORTIFRUT <span>/ TRANSPORT CONTROL</span></div>
+      <div class="header-title">CORE <span>· Transporte Hortifrut</span></div>
       <div class="header-sub">Arándano export · Posicionamiento puerto ↔ packing · Temporada 26/27</div>
     </div>
   </div>
   <div class="header-right">
-    <span class="badge mock">● PROTOTIPO — FASE 1</span>
+    <span class="badge" id="liveStatusBadge" title="Estado de la conexión con la base de datos">● Conectando…</span>
     <a class="header-btn" href="adjudicacion_servicios.html">Adjudicación</a>
     <a class="header-btn" href="maestro_tarifas.html">Maestro de tarifas</a>
     <div class="theme-switch">
@@ -554,11 +559,11 @@
       <div class="trend-note">Línea punteada = proyección con status "Proyectado" (sin transportista asignado aún)</div>
     </div>
     <div class="trend-wrap"><canvas id="weeklyChart"></canvas><div class="chart-tooltip" id="chartTooltip"></div></div>
-    <div class="trend-legend-note">
-      <span><span class="legend-dot" style="background:var(--horizon-slate)"></span>FCL ejecutados (barras)</span>
-      <span><span class="legend-dot" style="background:var(--yellow)"></span>Target Inicial (fijo)</span>
-      <span><span class="legend-dot" style="background:var(--horizon-cyan)"></span>Target Actual (tarifa + % adjudicación nueva)</span>
-      <span><span class="legend-dot" style="background:var(--horizon-coral)"></span>Target Ejecutado (acumulado real, punteado = proyectado)</span>
+    <div class="trend-legend-note" id="chartLegend">
+      <button type="button" class="legend-toggle" data-ds="0"><span class="legend-dot" style="background:var(--horizon-slate)"></span>FCL ejecutados (barras)</button>
+      <button type="button" class="legend-toggle" data-ds="1"><span class="legend-dot" style="background:var(--yellow)"></span>Target Inicial (fijo)</button>
+      <button type="button" class="legend-toggle" data-ds="2"><span class="legend-dot" style="background:var(--horizon-cyan)"></span>Target Actual (tarifa + % adjudicación nueva)</button>
+      <button type="button" class="legend-toggle" data-ds="3,4"><span class="legend-dot" style="background:var(--horizon-coral)"></span>Target Ejecutado (acumulado real, punteado = proyectado)</button>
     </div>
   </div>
 
@@ -645,6 +650,7 @@ const state = {
   selectedKeys: new Set(),               // claves incluidas en KPIs/gráficos (según groupBy)
   expandedKeys: new Set(),
   overrides: new Map(),                  // "prov|||ruta" -> { tarifa_actual, pct_adj_nueva, tiene_nueva, historial:[...] }
+  chartHiddenDs: new Set(),              // índices de dataset del gráfico semanal ocultados manualmente (botones de leyenda)
 };
 function routeKey(r) { return r.proveedor + '|||' + r.ruta; }
 function initSelection() {
@@ -698,6 +704,36 @@ try {
   }
 } catch (err) { console.error('No se pudo inicializar Supabase:', err); }
 
+function fmtDateTime(iso) {
+  if (!iso) return null;
+  return new Date(iso).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+async function updateLiveStatusBadge() {
+  const el = document.getElementById('liveStatusBadge');
+  if (!el) return;
+  if (!sb) { el.textContent = '● Sin conexión a Supabase'; el.className = 'badge offline'; el.title = 'La librería de Supabase no cargó en este navegador.'; return; }
+  try {
+    const [{ data: h }, { data: t }] = await Promise.all([
+      sb.from('horizon_fcl').select('updated_at').order('updated_at', { ascending: false }).limit(1),
+      sb.from('tarifa_overrides').select('updated_at').order('updated_at', { ascending: false }).limit(1),
+    ]);
+    const horizonAt = h && h[0] ? fmtDateTime(h[0].updated_at) : null;
+    const tarifaAt = t && t[0] ? fmtDateTime(t[0].updated_at) : null;
+    const parts = [];
+    if (horizonAt) parts.push(`Último Horizon cargado: ${horizonAt}`);
+    if (tarifaAt) parts.push(`Última tarifa/adjudicación: ${tarifaAt}`);
+    el.textContent = '● En línea';
+    el.className = 'badge live';
+    el.title = parts.length ? parts.join(' · ') : 'Conectado a Supabase (aún sin datos cargados por Maestro).';
+  } catch (err) {
+    console.error('Error consultando estado en vivo:', err);
+    el.textContent = '● Error de conexión';
+    el.className = 'badge offline';
+    el.title = 'No se pudo consultar Supabase (revisa la consola).';
+  }
+}
+updateLiveStatusBadge();
+
 async function loadOverridesFromSupabaseAndRender() {
   if (!sb) return;
   try {
@@ -716,6 +752,7 @@ if (sb) {
   sb.channel('tarifa_overrides_changes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'tarifa_overrides' }, () => {
       loadOverridesFromSupabaseAndRender();
+      updateLiveStatusBadge();
     })
     .subscribe();
 }
@@ -762,6 +799,7 @@ if (sb) {
   sb.channel('horizon_fcl_changes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'horizon_fcl' }, () => {
       loadHorizonFromSupabaseAndRender();
+      updateLiveStatusBadge();
     })
     .subscribe();
 }
@@ -1107,7 +1145,32 @@ function renderWeeklyTrend() {
       },
     },
   });
+
+  // Reaplica lo que el usuario haya ocultado con los botones de leyenda — Chart.js
+  // resetea la visibilidad de todos los datasets cada vez que se crea una instancia
+  // nueva (p.ej. al cambiar filtros), así que sin esto se "prendían" solas otra vez.
+  state.chartHiddenDs.forEach(i => weeklyChartInstance.setDatasetVisibility(i, false));
+  weeklyChartInstance.update();
+  document.querySelectorAll('#chartLegend .legend-toggle').forEach(btn => {
+    const indices = btn.dataset.ds.split(',').map(Number);
+    btn.classList.toggle('off', indices.some(i => state.chartHiddenDs.has(i)));
+  });
 }
+
+// Botones de la leyenda del gráfico principal: click alterna mostrar/ocultar esa línea
+// (o esas dos líneas, en el caso de Target Ejecutado confirmado+proyectado que comparten botón).
+document.getElementById('chartLegend').addEventListener('click', (e) => {
+  const btn = e.target.closest('.legend-toggle');
+  if (!btn || !weeklyChartInstance) return;
+  const indices = btn.dataset.ds.split(',').map(Number);
+  const nowVisible = !weeklyChartInstance.isDatasetVisible(indices[0]);
+  indices.forEach(i => {
+    weeklyChartInstance.setDatasetVisibility(i, nowVisible);
+    if (nowVisible) state.chartHiddenDs.delete(i); else state.chartHiddenDs.add(i);
+  });
+  weeklyChartInstance.update();
+  btn.classList.toggle('off', !nowVisible);
+});
 
 // tooltip HTML externo con colores dinámicos (rojo = sobrecosto, verde = ahorro)
 function renderCustomTooltip(context, tooltipEl, exec, targetInicial, targetActualSeries, weeks, canvasEl, chartPalette) {
@@ -1516,15 +1579,16 @@ try { renderAll(); } catch (err) { console.error('renderAll inicial falló (revi
     background: var(--bg2); border-bottom: 1px solid var(--border); padding: 14px 26px; display: flex;
     align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; position: sticky; top: 0; z-index: 20;
   }
-  .topbar-title { font-family: var(--mono); font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text); }
+  .topbar-title { font-family: var(--sans); font-size: 18px; font-weight: 800; letter-spacing: -0.01em; color: var(--text); }
   .topbar-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
   .topbar-right { display: flex; align-items: center; gap: 8px; }
   .header-btn {
-    font-family: var(--mono); font-size: 10.5px; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border2);
+    font-family: var(--sans); font-size: 12px; font-weight: 600; padding: 7px 14px; border-radius: 999px; border: none;
     background: var(--bg3); color: var(--text); cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all .15s;
     text-decoration: none;
   }
-  .header-btn:hover { border-color: var(--blue); background: var(--bg4); }
+  .header-btn:hover { background: var(--bg4); }
+  .topbar-right .edit-btn { font-family: var(--sans); font-size: 12px; padding: 7px 14px; border: none; }
 
   .content { padding: 22px 26px 60px; max-width: 1200px; }
 
@@ -1632,7 +1696,7 @@ try { renderAll(); } catch (err) { console.error('renderAll inicial falló (revi
   <div class="platform-main">
     <div class="topbar">
       <div>
-        <div class="topbar-title">Maestro de tarifas y adjudicación</div>
+        <div class="topbar-title">CORE · Maestro de tarifas y adjudicación</div>
         <div class="topbar-sub">Registro y vigencia de tarifas por proveedor y ruta</div>
       </div>
       <div class="topbar-right">
@@ -2390,7 +2454,7 @@ window.parent.postMessage({ type: 'ready', view: 'maestro' }, '*');
   <div class="platform-main">
     <div class="topbar">
       <div>
-        <div class="topbar-title">Adjudicación de Servicios</div>
+        <div class="topbar-title">CORE · Adjudicación de Servicios</div>
         <div class="topbar-sub">Presupuesto adjudicado vs. ejecutado por proveedor y ubicación</div>
       </div>
       <div class="topbar-right">
