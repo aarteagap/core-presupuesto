@@ -1902,8 +1902,23 @@ document.getElementById('horizonFileInput').addEventListener('change', async (e)
   }
 });
 
-function exportToExcel() {
+async function exportToExcel() {
   if (!window.XLSX) { alert('La librería de exportación no cargó (revisa tu conexión a internet).'); return; }
+  // Vuelve a leer Supabase justo antes de exportar — si el archivo se acaba
+  // de abrir, o si la última tarifa/asignación se guardó desde otro
+  // dispositivo/sesión, state.overrides podría no tener todavía la versión
+  // más reciente (la carga inicial es asíncrona). Así el Excel exportado
+  // siempre refleja lo que hay guardado en Supabase en ese momento, no lo
+  // que había cargado la página cuando se abrió.
+  const btn = document.getElementById('exportBtn');
+  const originalLabel = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Actualizando…'; }
+  try {
+    await loadOverridesFromSupabase();
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = originalLabel; }
+  }
+
   const rows = DATA.routes.map(r => {
     const key = routeKey(r);
     const ov = state.overrides.get(key);
