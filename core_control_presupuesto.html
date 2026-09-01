@@ -720,6 +720,52 @@ if (sb) {
     .subscribe();
 }
 
+// ---- Horizon (despachos) cargado desde Maestro → "Cargar Horizon" ----
+// Si hay filas en Supabase, reemplazan por completo el fcl_by_week /
+// proyectado_by_week / pack_plan_weeks incrustados en este HTML (que eran
+// un snapshot fijo del Horizon del día que se armó el Dashboard).
+function refreshPackPlanFilterOptions() {
+  const ppMinSel = document.getElementById('ppMinFilter');
+  const ppMaxSel = document.getElementById('ppMaxFilter');
+  if (!ppMinSel || !ppMaxSel) return;
+  ppMinSel.innerHTML = ''; ppMaxSel.innerHTML = '';
+  DATA.pack_plan_weeks.forEach(w => {
+    ppMinSel.insertAdjacentHTML('beforeend', `<option value="${w}">PP${w}</option>`);
+    ppMaxSel.insertAdjacentHTML('beforeend', `<option value="${w}">PP${w}</option>`);
+  });
+  ppMinSel.value = state.weekMin; ppMaxSel.value = state.weekMax;
+}
+
+async function loadHorizonFromSupabaseAndRender() {
+  if (!sb) return;
+  try {
+    const { data, error } = await sb.from('horizon_fcl').select('*');
+    if (error) throw error;
+    if (!data || !data.length) return; // nada cargado aún vía Maestro — se queda con el snapshot incrustado
+    DATA.fcl_by_week = data
+      .filter(r => r.status === 'confirmado')
+      .map(r => ({ proveedor: r.proveedor, ruta: r.ruta, pack_plan: r.pack_plan, fcl: Number(r.fcl) }));
+    DATA.proyectado_by_week = data
+      .filter(r => r.status === 'proyectado')
+      .map(r => ({ ruta: r.ruta, pack_plan: r.pack_plan, fcl: Number(r.fcl) }));
+    DATA.pack_plan_weeks = [...new Set(data.map(r => r.pack_plan))].sort((a, b) => a - b);
+    state.weekMin = DATA.pack_plan_weeks[0];
+    state.weekMax = DATA.pack_plan_weeks[DATA.pack_plan_weeks.length - 1];
+    refreshPackPlanFilterOptions();
+    try { renderAllReactive(); } catch (err) { console.error('renderAllReactive tras cargar Horizon falló:', err); }
+  } catch (err) {
+    console.error('Error leyendo Horizon desde Supabase:', err);
+  }
+}
+loadHorizonFromSupabaseAndRender();
+if (sb) {
+  sb.channel('horizon_fcl_changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'horizon_fcl' }, () => {
+      loadHorizonFromSupabaseAndRender();
+    })
+    .subscribe();
+}
+
 function activeWeeks() { return DATA.pack_plan_weeks.filter(w => w >= state.weekMin && w <= state.weekMax); }
 
 // =====================================================================
@@ -1605,6 +1651,7 @@ try { renderAll(); } catch (err) { console.error('renderAll inicial falló (revi
       <div class="intro-note">
         Registra nuevas versiones de <b>tarifa</b> y <b>% de adjudicación</b> por proveedor y ruta. Los 4 campos del formulario van con las fechas de vigencia — así queda registrada cuándo empezó a regir cada tarifa. Viajes estimados, Tarifa inicial y % Adjudicación inicial son fijos (no editables), vienen del presupuesto adjudicado de la temporada.
         <br><b>Perfiles (arriba a la derecha):</b> <b>Jefe</b> edita la % de Adjudicación (asignación entre proveedores); <b>Coordinador</b> edita la Tarifa (US$). El campo que no corresponde a tu perfil queda bloqueado — así se evita que se pise por error un cambio del otro perfil. <span class="warn">Nota: es un separador de flujo de trabajo, no una restricción de seguridad real — cualquiera puede cambiar de perfil libremente, no hay usuarios ni contraseñas.</span>
+        <br><b>⬆ Cargar Horizon:</b> sube el archivo HORIZON_FORECAST (.xlsm) actualizado — se procesa acá mismo en tu navegador (nada pasa por AXIS_API ni por Render) y reemplaza los despachos Confirmado/Proyectado que usa el Dashboard. Los demás usuarios verán los datos nuevos al recargar la página.
         <br><span class="warn">Fase 1 (prototipo, sin backend): los cambios que guardes aquí se reflejan al instante en el Dashboard (Target Actual) dentro de esta misma sesión del navegador, pero no se guardan de forma permanente — al recargar la página se pierden. Para que las tarifas queden registradas de forma persistente (con historial y exportable a Excel) se necesita una Fase 2 con base de datos compartida — ver propuesta al final.</span>
       </div>
 
@@ -1613,7 +1660,10 @@ try { renderAll(); } catch (err) { console.error('renderAll inicial falló (revi
         <select id="rutaFilter" class="select-input"><option value="">Todas las rutas</option></select>
         <select id="provFilter" class="select-input"><option value="">Todos los proveedores</option></select>
         <button class="edit-btn" id="exportBtn" type="button">⬇ Exportar a Excel</button>
+        <button class="edit-btn primary" id="uploadHorizonBtn" type="button">⬆ Cargar Horizon</button>
+        <input type="file" id="horizonFileInput" accept=".xlsm,.xlsx" style="display:none;">
         <span class="toolbar-count" id="syncStatus"></span>
+        <span class="toolbar-count" id="horizonStatus"></span>
         <div class="toolbar-spacer"></div>
         <div class="toolbar-count" id="toolbarCount"></div>
       </div>
@@ -1717,6 +1767,110 @@ async function saveOverrideToSupabase(key, r, entry) {
     setSyncStatus('⚠ No se pudo guardar en Supabase (quedó solo local) — revisa la consola');
   }
 }
+
+// =====================================================================
+// # 01b CARGAR HORIZON (Excel de despachos -> Supabase, 100% en el navegador)
+// Lee HORIZON_FORECAST_2627_V1.xlsm directo desde tu computador, agrupa
+// FCL Confirmado (por proveedor+ruta+semana) y Proyectado (por ruta+semana)
+// exactamente igual que se hizo manualmente al armar el Dashboard, y
+// reemplaza la tabla horizon_fcl en Supabase. No pasa por ningún backend
+// ni por el API de AXIS — todo el parseo ocurre aquí, en tu navegador.
+// =====================================================================
+const TRANSPORT_OPERATOR_MAP = {
+  'LIP': 'LOGISTICA INTERMODAL DEL PERU SAC',
+  'VESL': 'VE SOLUCIONES LOGISTICAS S.A.C.',
+  'Maersk': 'MAERSK LOGISTICS & SERVICES PERU S.A.',
+  'Expert Transport': 'EXPERT TRANSPORT SAC',
+  'Cititrans': 'CITITRANS SAC',
+  'Costa Transport': 'COSTA TRANSPORT EIRL',
+};
+
+function setHorizonStatus(text) {
+  const el = document.getElementById('horizonStatus');
+  if (el) el.textContent = text;
+}
+
+function parseHorizonWorkbook(arrayBuffer) {
+  const wb = XLSX.read(arrayBuffer, { type: 'array', sheets: ['HORIZON_FORECAST'] });
+  const sheet = wb.Sheets['HORIZON_FORECAST'];
+  if (!sheet) throw new Error('No se encontró la hoja "HORIZON_FORECAST" en el archivo.');
+  const rows = XLSX.utils.sheet_to_json(sheet, { defval: null });
+
+  const confirmado = new Map(); // "proveedor|||ruta|||pp" -> fcl acumulado
+  const proyectado = new Map(); // "ruta|||pp" -> fcl acumulado
+  let unmapped = 0;
+
+  rows.forEach(row => {
+    if (row['Mode'] !== 'Marítimo') return;
+    const status = row['Status'];
+    if (status !== 'Confirmado' && status !== 'Proyectado') return;
+    const pol = row['POL'], packing = row['Packing'], pp = row['Pack Plan'];
+    const fcl = Number(row['FCL']) || 0;
+    if (!pol || !packing || pp === null || pp === undefined) return;
+    const ruta = `${String(pol).toUpperCase()} - ${String(packing).toUpperCase()} - ${String(pol).toUpperCase()}`;
+
+    if (status === 'Confirmado') {
+      const prov = TRANSPORT_OPERATOR_MAP[row['Transport Operator']];
+      if (!prov) { unmapped += fcl; return; }
+      const key = `${prov}|||${ruta}|||${pp}`;
+      confirmado.set(key, (confirmado.get(key) || 0) + fcl);
+    } else {
+      const key = `${ruta}|||${pp}`;
+      proyectado.set(key, (proyectado.get(key) || 0) + fcl);
+    }
+  });
+
+  const confirmadoRows = [...confirmado.entries()].map(([key, fcl]) => {
+    const [proveedor, ruta, pp] = key.split('|||');
+    return { proveedor, ruta, pack_plan: Number(pp), fcl: Math.round(fcl * 1000) / 1000, status: 'confirmado' };
+  });
+  const proyectadoRows = [...proyectado.entries()].map(([key, fcl]) => {
+    const [ruta, pp] = key.split('|||');
+    return { proveedor: '', ruta, pack_plan: Number(pp), fcl: Math.round(fcl * 1000) / 1000, status: 'proyectado' };
+  });
+
+  return { rows: [...confirmadoRows, ...proyectadoRows], unmapped };
+}
+
+async function uploadHorizonToSupabase(rows) {
+  if (!sb) throw new Error('Supabase no está inicializado.');
+  // Reemplazo completo: borra todo lo anterior y sube el set actual — evita
+  // arrastrar semanas viejas si una ruta deja de tener despachos.
+  const { error: delErr } = await sb.from('horizon_fcl').delete().not('ruta', 'is', null);
+  if (delErr) throw delErr;
+  // Inserta en lotes para no exceder el límite de tamaño de una sola request.
+  const BATCH = 500;
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const { error } = await sb.from('horizon_fcl').insert(rows.slice(i, i + BATCH));
+    if (error) throw error;
+  }
+}
+
+document.getElementById('uploadHorizonBtn').addEventListener('click', () => {
+  document.getElementById('horizonFileInput').click();
+});
+document.getElementById('horizonFileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (!window.XLSX) { alert('La librería de lectura de Excel no cargó (revisa tu conexión a internet).'); return; }
+  if (!sb) { alert('Supabase no está conectado — no se puede cargar Horizon sin conexión.'); return; }
+  setHorizonStatus('Leyendo archivo…');
+  try {
+    const buf = await file.arrayBuffer();
+    setHorizonStatus('Procesando HORIZON_FORECAST…');
+    const { rows, unmapped } = parseHorizonWorkbook(buf);
+    if (!rows.length) throw new Error('No se encontraron filas Marítimo/Confirmado o Proyectado en el archivo.');
+    setHorizonStatus(`Subiendo ${rows.length} fila(s) a Supabase…`);
+    await uploadHorizonToSupabase(rows);
+    setHorizonStatus(`✓ Horizon actualizado (${rows.length} filas)${unmapped ? ` · ${fmtNum(unmapped,1)} FCL de transportistas no mapeados, excluidos` : ''}`);
+  } catch (err) {
+    console.error('Error cargando Horizon:', err);
+    setHorizonStatus('⚠ Error cargando Horizon (revisa la consola)');
+    alert('Error cargando el archivo de Horizon: ' + err.message);
+  } finally {
+    e.target.value = '';
+  }
+});
 
 function exportToExcel() {
   if (!window.XLSX) { alert('La librería de exportación no cargó (revisa tu conexión a internet).'); return; }

@@ -51,3 +51,32 @@ create policy "anon insert historial" on public.tarifa_overrides_historial
 -- al instante sin recargar (opcional, ya usamos postMessage como
 -- respaldo dentro de la misma sesión del navegador).
 alter publication supabase_realtime add table public.tarifa_overrides;
+
+-- =====================================================================
+-- Fase 2b: FCL de Horizon (despachos), cargado desde el navegador
+-- (Maestro → "Cargar Horizon"), sin pasar por ningún backend/API.
+-- Reemplaza el bloque fcl_by_week / proyectado_by_week que antes vivía
+-- incrustado y fijo dentro del HTML.
+-- =====================================================================
+create table if not exists public.horizon_fcl (
+  proveedor   text not null default '',   -- '' para filas "Proyectado" (sin transportista asignado)
+  ruta        text not null,
+  pack_plan   integer not null,
+  fcl         numeric not null,
+  status      text not null check (status in ('confirmado', 'proyectado')),
+  updated_at  timestamptz not null default now(),
+  primary key (proveedor, ruta, pack_plan, status)
+);
+
+alter table public.horizon_fcl enable row level security;
+
+create policy "anon select horizon_fcl" on public.horizon_fcl
+  for select using (true);
+create policy "anon upsert horizon_fcl" on public.horizon_fcl
+  for insert with check (true);
+create policy "anon update horizon_fcl" on public.horizon_fcl
+  for update using (true);
+create policy "anon delete horizon_fcl" on public.horizon_fcl
+  for delete using (true);
+
+alter publication supabase_realtime add table public.horizon_fcl;
