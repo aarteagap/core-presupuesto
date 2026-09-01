@@ -1637,6 +1637,7 @@ try { renderAll(); } catch (err) { console.error('renderAll inicial falló (revi
       </div>
       <div class="topbar-right">
         <button class="edit-btn" id="roleLockBtn" type="button">🔒 Ingresar clave</button>
+        <button class="edit-btn" id="infoToggleBtn" type="button" title="Cómo funciona esta página" aria-expanded="false">ⓘ Info</button>
         <a class="header-btn" href="presupuesto_transporte_dashboard_v2.html">← Volver al Dashboard</a>
         <div class="theme-switch">
           <button class="ios-toggle" id="themeToggle"><span class="knob"></span></button>
@@ -1645,11 +1646,11 @@ try { renderAll(); } catch (err) { console.error('renderAll inicial falló (revi
     </div>
 
     <div class="content">
-      <div class="intro-note">
+      <div class="intro-note" id="introNote" hidden>
         Registra nuevas versiones de <b>tarifa</b> y <b>% de adjudicación</b> por proveedor y ruta. Los 4 campos del formulario van con las fechas de vigencia — así queda registrada cuándo empezó a regir cada tarifa. Viajes estimados, Tarifa inicial y % Adjudicación inicial son fijos (no editables), vienen del presupuesto adjudicado de la temporada.
         <br><b>Perfiles (clave arriba a la derecha):</b> ingresa tu clave con "🔒 Ingresar clave" para desbloquear tu perfil. <b>Jefe</b> edita la % de Adjudicación (asignación entre proveedores); <b>Coordinador</b> edita la Tarifa (US$). Sin clave, ambos campos quedan bloqueados; con clave, solo el campo del otro perfil queda bloqueado. <span class="warn">Nota: la clave vive en este mismo archivo (no hay servidor de usuarios/login), así que no es una seguridad a prueba de todo — pero ya no es un botón libre, hay que conocer la clave de tu perfil para editar.</span>
         <br><b>⬆ Cargar Horizon:</b> sube el archivo HORIZON_FORECAST (.xlsm) actualizado — se procesa acá mismo en tu navegador (nada pasa por AXIS_API ni por Render) y reemplaza los despachos Confirmado/Proyectado que usa el Dashboard. Los demás usuarios verán los datos nuevos al recargar la página.
-        <br><span class="warn">Fase 1 (prototipo, sin backend): los cambios que guardes aquí se reflejan al instante en el Dashboard (Target Actual) dentro de esta misma sesión del navegador, pero no se guardan de forma permanente — al recargar la página se pierden. Para que las tarifas queden registradas de forma persistente (con historial y exportable a Excel) se necesita una Fase 2 con base de datos compartida — ver propuesta al final.</span>
+        <br><b>Fase 2 (activa):</b> los cambios que guardas aquí quedan registrados de forma permanente en la base de datos compartida (Supabase), con historial y fecha de vigencia — se reflejan en el Dashboard, en "Vigente" de cada ruta y en el Excel exportado, para todos los usuarios al recargar la página.
       </div>
 
       <div class="toolbar">
@@ -2128,6 +2129,14 @@ function applyRoleUI() {
   else btn.textContent = '🔒 Ingresar clave';
 }
 document.getElementById('roleLockBtn').addEventListener('click', promptForRole);
+
+document.getElementById('infoToggleBtn').addEventListener('click', () => {
+  const note = document.getElementById('introNote');
+  const btn = document.getElementById('infoToggleBtn');
+  const show = note.hidden;
+  note.hidden = !show;
+  btn.setAttribute('aria-expanded', String(show));
+});
 
 async function init() {
   applyRoleUI();
