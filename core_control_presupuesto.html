@@ -735,13 +735,42 @@ async function updateLiveStatusBadge() {
 }
 updateLiveStatusBadge();
 
+// Construye una "vigencias" (misma forma que la incrustada en DATA.routes: [{desde,hasta,tarifa}])
+// a partir del historial guardado en Maestro, usando el Pack Plan que cada versión registró como
+// "vigente desde". Solo con versiones que tengan ese dato (pack_plan_desde) — el historial viejo,
+// guardado antes de que existiera ese campo, no aporta escalón y se ignora acá.
+function vigenciasFromHistorial(historial) {
+  const conPP = (historial || [])
+    .filter(h => h.pack_plan_desde !== null && h.pack_plan_desde !== undefined)
+    .sort((a, b) => a.pack_plan_desde - b.pack_plan_desde);
+  if (!conPP.length) return null;
+  return conPP.map((h, i) => ({
+    desde: h.pack_plan_desde,
+    hasta: i < conPP.length - 1 ? conPP[i + 1].pack_plan_desde - 1 : null,
+    tarifa: h.tarifa_nueva,
+  }));
+}
+
 async function loadOverridesFromSupabaseAndRender() {
   if (!sb) return;
   try {
-    const { data, error } = await sb.from('tarifa_overrides').select('*');
+    const [{ data, error }, { data: historial, error: e2 }] = await Promise.all([
+      sb.from('tarifa_overrides').select('*'),
+      sb.from('tarifa_overrides_historial').select('*').order('creado_en', { ascending: true }),
+    ]);
     if (error) throw error;
+    if (e2) throw e2;
+    const histByKey = {};
+    (historial || []).forEach(h => {
+      (histByKey[h.route_key] = histByKey[h.route_key] || []).push({
+        tarifa_nueva: Number(h.tarifa_nueva), pack_plan_desde: h.pack_plan_desde,
+      });
+    });
     (data || []).forEach(o => {
-      state.overrides.set(o.route_key, { tarifa_actual: Number(o.tarifa_actual), pct_adj_nueva: Number(o.pct_adj_nueva) });
+      state.overrides.set(o.route_key, {
+        tarifa_actual: Number(o.tarifa_actual), pct_adj_nueva: Number(o.pct_adj_nueva),
+        vigencias: vigenciasFromHistorial(histByKey[o.route_key]),
+      });
     });
     try { renderAllReactive(); } catch (err) { console.error('renderAllReactive tras cargar Supabase falló:', err); }
   } catch (err) {
@@ -853,11 +882,15 @@ function effectiveRoute(r) {
   const tarifa_actual = ov ? ov.tarifa_actual : r.tarifa_actual;
   const pct_adj_nueva = ov ? ov.pct_adj_nueva : r.pct_adj_nueva;
   const tiene_nueva = ov ? true : r.tiene_nueva;
+  // Preferimos el histórico de vigencias registrado desde Maestro (por Pack Plan real) sobre el
+  // que viniera incrustado en el HTML — si Maestro aún no tiene ninguna versión con Pack Plan
+  // registrado, se usa el incrustado como respaldo (o ninguno, si tampoco existe).
+  const vigencias = (ov && ov.vigencias) ? ov.vigencias : r.vigencias;
   const rows = fclRowsInRange(r.proveedor, r.ruta);
   const fcl_ejecutado = rows.reduce((a, row) => a + row.fcl, 0);
-  const eff = { ...r, tarifa_actual, pct_adj_nueva, tiene_nueva, _edited: !!ov };
+  const eff = { ...r, tarifa_actual, pct_adj_nueva, tiene_nueva, vigencias, _edited: !!ov };
   let presupuesto_ejecutado, desviacion;
-  if (!r.vigencias) {
+  if (!vigencias) {
     presupuesto_ejecutado = fcl_ejecutado * tarifa_actual;
     desviacion = r.sin_base ? null : (r.tarifa_inicial - tarifa_actual) * fcl_ejecutado;
   } else {
@@ -1776,6 +1809,11 @@ const DATA = {"routes": [{"proveedor": "LOGISTICA INTERMODAL DEL PERU SAC", "rut
 // escribirla). Se guarda solo para esta pestaña (sessionStorage) — al
 // cerrar el navegador o abrir en otro equipo, hay que volver a ingresarla.
 const ROLE_PASSWORDS = { 'Hfpe26J*': 'jefe', 'Opex*26': 'coordinador' };
+// Ventana de Pack Plan de la temporada (misma que DATA.pack_plan_weeks en el Dashboard, PP21-PP40).
+// Se usa para que cada versión de tarifa/adjudicación registre desde qué Pack Plan rige — así el
+// Dashboard puede mostrar el histórico como escalón por semana en vez de aplanarlo con el valor
+// más reciente para toda la temporada.
+const PACK_PLAN_RANGE = Array.from({ length: 20 }, (_, i) => i + 21);
 function getStoredRole() {
   try { return sessionStorage.getItem('core_role') || null; } catch (e) { return null; }
 }
@@ -1829,6 +1867,7 @@ async function loadOverridesFromSupabase() {
       (histByKey[h.route_key] = histByKey[h.route_key] || []).push({
         tarifa_nueva: Number(h.tarifa_nueva), pct_adj_nueva: Number(h.pct_adj_nueva),
         fecha_inicio: h.fecha_inicio, fecha_vencimiento: h.fecha_vencimiento, creado: (h.creado_en || '').slice(0, 10),
+        pack_plan_desde: h.pack_plan_desde ?? null,
         updated_by: h.updated_by || '',
       });
     });
@@ -1853,12 +1892,14 @@ async function saveOverrideToSupabase(key, r, entry) {
       route_key: key, proveedor: r.proveedor, ruta: r.ruta,
       tarifa_nueva: entry.tarifa_nueva, pct_adj_nueva: entry.pct_adj_nueva,
       fecha_inicio: entry.fecha_inicio, fecha_vencimiento: entry.fecha_vencimiento,
+      pack_plan_desde: entry.pack_plan_desde ?? null,
       updated_by: entry.updated_by || null,
     });
     const { error } = await sb.from('tarifa_overrides').upsert({
       route_key: key, proveedor: r.proveedor, ruta: r.ruta,
       tarifa_actual: entry.tarifa_nueva, pct_adj_nueva: entry.pct_adj_nueva,
       fecha_inicio: entry.fecha_inicio, fecha_vencimiento: entry.fecha_vencimiento,
+      pack_plan_desde: entry.pack_plan_desde ?? null,
       updated_at: new Date().toISOString(), updated_by: entry.updated_by || null,
     });
     if (error) throw error;
@@ -2033,6 +2074,7 @@ async function exportToExcel() {
         'Tarifa anterior (US$)': prev ? prev.tarifa_nueva : '', '% Adj. anterior': prev ? prev.pct_adj_nueva : '',
         'Tarifa nueva (US$)': h.tarifa_nueva, '% Adj. nueva': h.pct_adj_nueva,
         'Vigencia desde': h.fecha_inicio, 'Vigencia hasta': h.fecha_vencimiento,
+        'Vigente desde Pack Plan': h.pack_plan_desde != null ? 'PP' + h.pack_plan_desde : '',
         'Guardado el': h.creado, 'Guardado por': h.updated_by || '',
       });
     });
@@ -2135,6 +2177,7 @@ function renderMasterTable() {
           <div class="field-group ${state.role !== 'jefe' ? 'locked' : ''}"><label>Nueva % Adjudicación ${state.role === 'jefe' ? '*' : ''}${state.role !== 'jefe' ? ' 🔒 Jefe' : ''}</label><input type="number" step="1" min="0" max="100" class="f-pct" value="${Math.round(currentPct*100)}" ${state.role !== 'jefe' ? 'disabled' : ''}></div>
           <div class="field-group"><label>Fecha inicio vigencia *</label><input type="date" class="f-inicio" value="${todayISO()}"></div>
           <div class="field-group"><label>Fecha vencimiento *</label><input type="date" class="f-fin"></div>
+          <div class="field-group"><label>Vigente desde Pack Plan *</label><select class="f-pp-desde">${PACK_PLAN_RANGE.map(w => `<option value="${w}">PP${w}</option>`).join('')}</select></div>
         </div>
         <div class="role-note">${state.role
           ? `Editando como <b>${state.role === 'jefe' ? 'Jefe' : 'Coordinador'}</b> — ${state.role === 'jefe' ? 'puedes cambiar la % de adjudicación; la tarifa queda bloqueada (la edita Coordinador)' : 'puedes cambiar la tarifa; la % de adjudicación queda bloqueada (la edita Jefe)'}.`
@@ -2146,7 +2189,8 @@ function renderMasterTable() {
           <div class="history-list">
             ${ov.historial.map((h, i) => {
               const prev = i > 0 ? ov.historial[i - 1] : { tarifa_nueva: r.tarifa_inicial, pct_adj_nueva: r.pct_adj_inicial };
-              return `<div class="h-row"><span class="h-date">${h.creado}</span><span>Tarifa ${fmtUSD(prev.tarifa_nueva,{decimals:2})} → ${fmtUSD(h.tarifa_nueva,{decimals:2})} · % Adj ${fmtPct(prev.pct_adj_nueva)} → ${fmtPct(h.pct_adj_nueva)} · vigencia ${h.fecha_inicio} → ${h.fecha_vencimiento}${h.updated_by ? ` · por <b>${h.updated_by}</b>` : ''}</span></div>`;
+              const ppTxt = h.pack_plan_desde != null ? ` · desde PP${h.pack_plan_desde}` : '';
+              return `<div class="h-row"><span class="h-date">${h.creado}</span><span>Tarifa ${fmtUSD(prev.tarifa_nueva,{decimals:2})} → ${fmtUSD(h.tarifa_nueva,{decimals:2})} · % Adj ${fmtPct(prev.pct_adj_nueva)} → ${fmtPct(h.pct_adj_nueva)} · vigencia ${h.fecha_inicio} → ${h.fecha_vencimiento}${ppTxt}${h.updated_by ? ` · por <b>${h.updated_by}</b>` : ''}</span></div>`;
             }).join('')}
           </div>
         </div>` : ''}
@@ -2186,8 +2230,9 @@ function wireRowEvents() {
       const pctRaw = parseFloat(form.querySelector('.f-pct').value);
       const inicio = form.querySelector('.f-inicio').value;
       const fin = form.querySelector('.f-fin').value;
+      const ppDesde = parseInt(form.querySelector('.f-pp-desde').value, 10);
       const errEl = document.getElementById('err-' + s);
-      if (isNaN(tarifa) || isNaN(pctRaw) || !inicio || !fin) { errEl.style.display = 'block'; return; }
+      if (isNaN(tarifa) || isNaN(pctRaw) || !inicio || !fin || isNaN(ppDesde)) { errEl.style.display = 'block'; return; }
       if (fin <= inicio) { errEl.textContent = 'La fecha de vencimiento debe ser posterior a la fecha de inicio.'; errEl.style.display = 'block'; return; }
       errEl.style.display = 'none';
 
@@ -2196,7 +2241,7 @@ function wireRowEvents() {
 
       const pct = pctRaw / 100;
       const existing = state.overrides.get(key) || { historial: [] };
-      const entry = { tarifa_nueva: tarifa, pct_adj_nueva: pct, fecha_inicio: inicio, fecha_vencimiento: fin, creado: todayISO(), updated_by: updatedBy };
+      const entry = { tarifa_nueva: tarifa, pct_adj_nueva: pct, fecha_inicio: inicio, fecha_vencimiento: fin, pack_plan_desde: ppDesde, creado: todayISO(), updated_by: updatedBy };
       existing.tarifa_actual = tarifa;
       existing.pct_adj_nueva = pct;
       existing.updated_by = updatedBy;

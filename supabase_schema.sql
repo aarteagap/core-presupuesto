@@ -18,6 +18,10 @@ create table if not exists public.tarifa_overrides (
 -- ADD COLUMN aparte porque la tabla ya existía en producción sin esta
 -- columna cuando se agregó — CREATE TABLE IF NOT EXISTS no la habría creado.
 alter table public.tarifa_overrides add column if not exists updated_by text;
+-- Pack Plan desde el que rige esta versión (además de las fechas calendario) — permite que el
+-- Dashboard construya la curva de Target Actual/Ejecutado como escalón por semana en vez de
+-- aplanar todo el histórico con el valor más reciente.
+alter table public.tarifa_overrides add column if not exists pack_plan_desde integer;
 
 create table if not exists public.tarifa_overrides_historial (
   id               bigint generated always as identity primary key,
@@ -31,6 +35,7 @@ create table if not exists public.tarifa_overrides_historial (
   creado_en        timestamptz not null default now()
 );
 alter table public.tarifa_overrides_historial add column if not exists updated_by text;
+alter table public.tarifa_overrides_historial add column if not exists pack_plan_desde integer;
 
 create index if not exists idx_historial_route_key
   on public.tarifa_overrides_historial (route_key, creado_en);
