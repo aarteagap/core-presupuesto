@@ -2299,6 +2299,7 @@ function renderMasterTable() {
         <div class="role-note">${state.role
           ? `Editando como <b>${state.role === 'jefe' ? 'Jefe' : 'Coordinador'}</b> — ${state.role === 'jefe' ? 'puedes cambiar la % de adjudicación; la tarifa queda bloqueada (la edita Coordinador)' : 'puedes cambiar la tarifa; la % de adjudicación queda bloqueada (la edita Jefe)'}.`
           : `🔒 No has ingresado tu clave — ambos campos están bloqueados. Usa "Ingresar clave" arriba a la derecha para poder editar.`}</div>
+        <div class="role-note" style="margin-top:4px;">ℹ La "Fecha vencimiento" es solo de referencia/registro — <b>no</b> corta la vigencia sola. Para que la curva del Dashboard suba o baje en una semana futura, guarda esa fecha como una versión nueva aparte (con su propia "Fecha inicio vigencia").</div>
         <div class="form-error" id="err-${s}">Completa los 4 campos (tarifa, % adjudicación, fecha inicio y fecha vencimiento) para guardar.</div>
         ${ov && ov.historial.length ? `
         <div class="history-wrap">
