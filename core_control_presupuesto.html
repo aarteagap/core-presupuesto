@@ -1028,7 +1028,7 @@ function computeExecutedSeries(routes, weeks) {
   // no los viajes estimados del presupuesto). Esta línea se recalculará sola si se cargan más
   // versiones de tarifa por periodo de vigencia (Loading Date) en el Maestro.
   let cumUsd = 0, cumFcl = 0;
-  const solid = [], dashed = [], fclWeek = [], usdDelta = [];
+  const solid = [], dashed = [], fclWeek = [], usdDelta = [], weeklyAvg = [];
   const tInicial = totalViajes > 0 ? base.reduce((a, r) => a + r.presupuesto_total, 0) / totalViajes : 0;
   weeks.forEach(w => {
     const isProjectedZone = lastConfirmedWeek !== null && w > lastConfirmedWeek;
@@ -1040,10 +1040,11 @@ function computeExecutedSeries(routes, weeks) {
     // desviación de esa semana: (tarifa inicial promedio ponderada activa - tarifa usada) x fcl incremental
     const tarifaEfectivaSemana = incFcl > 0 ? (incUsd / incFcl) : null;
     usdDelta.push(tarifaEfectivaSemana !== null ? (tInicial - tarifaEfectivaSemana) * incFcl : 0);
+    weeklyAvg.push(tarifaEfectivaSemana);
     if (!isProjectedZone) { solid.push(val); dashed.push(w === lastConfirmedWeek ? val : null); }
     else { solid.push(null); dashed.push(val); }
   });
-  return { solid, dashed, fclWeek, usdDelta, lastConfirmedWeek, cumFclFinal: cumFcl };
+  return { solid, dashed, fclWeek, usdDelta, weeklyAvg, lastConfirmedWeek, cumFclFinal: cumFcl };
 }
 
 // =====================================================================
@@ -1247,7 +1248,8 @@ function renderCustomTooltip(context, tooltipEl, exec, targetInicial, targetFsc,
     { color: chartPalette.initial, name: 'Target Inicial', val: targetInicial !== null ? fmtUSD(targetInicial) : '—' },
     { color: chartPalette.actual, name: 'Target Actual', val: (targetActual !== null && targetActual !== undefined) ? fmtUSD(targetActual) : '—' },
     { color: chartPalette.fsc, name: 'Target FSC', val: targetFsc !== null ? fmtUSD(targetFsc, { decimals: 2 }) : '—' },
-    { color: chartPalette.executed, name: `Target Ejecutado${isProjected ? ' (proy.)' : ''}`, val: execVal !== null ? fmtUSD(execVal) : '—' },
+    { color: chartPalette.executed, name: `Target Ejecutado${isProjected ? ' (proy., acum.)' : ' (acumulado)'}`, val: execVal !== null ? fmtUSD(execVal) : '—' },
+    { color: chartPalette.muted, name: 'Target Ejecutado (esta semana)', val: exec.weeklyAvg[idx] !== null ? fmtUSD(exec.weeklyAvg[idx]) : '—' },
     { color: chartPalette.muted, name: 'FCL contenedores', val: fmtNum(fcl, 1) },
   ];
 
