@@ -645,7 +645,7 @@ applyTheme(prefersDark ? 'dark' : 'light');
 // =====================================================================
 const state = {
   search: '', rutaFilter: '', provFilter: '', mode: 'Marítimo', onlyNegative: false,
-  weekMin: DATA.pack_plan_weeks[0], weekMax: DATA.pack_plan_weeks[DATA.pack_plan_weeks.length - 1],
+  weekMin: DATA.pack_plan_weeks.includes(27) ? 27 : DATA.pack_plan_weeks[0], weekMax: DATA.pack_plan_weeks[DATA.pack_plan_weeks.length - 1],
   yAxisMin: 0,                           // piso ajustable del eje Y del gráfico semanal (US$)
   groupBy: 'proveedor',
   selectedKeys: new Set(),               // claves incluidas en KPIs/gráficos (según groupBy)
@@ -748,6 +748,7 @@ function vigenciasFromHistorial(historial) {
     desde: h.pack_plan_desde,
     hasta: i < conPP.length - 1 ? conPP[i + 1].pack_plan_desde - 1 : null,
     tarifa: h.tarifa_nueva,
+    pct: h.pct_adj_nueva,
   }));
 }
 
@@ -763,7 +764,7 @@ async function loadOverridesFromSupabaseAndRender() {
     const histByKey = {};
     (historial || []).forEach(h => {
       (histByKey[h.route_key] = histByKey[h.route_key] || []).push({
-        tarifa_nueva: Number(h.tarifa_nueva), pack_plan_desde: h.pack_plan_desde,
+        tarifa_nueva: Number(h.tarifa_nueva), pct_adj_nueva: Number(h.pct_adj_nueva), pack_plan_desde: h.pack_plan_desde,
       });
     });
     (data || []).forEach(o => {
@@ -816,7 +817,7 @@ async function loadHorizonFromSupabaseAndRender() {
       .filter(r => r.status === 'proyectado')
       .map(r => ({ ruta: r.ruta, pack_plan: r.pack_plan, fcl: Number(r.fcl) }));
     DATA.pack_plan_weeks = [...new Set(data.map(r => r.pack_plan))].sort((a, b) => a - b);
-    state.weekMin = DATA.pack_plan_weeks[0];
+    state.weekMin = DATA.pack_plan_weeks.includes(27) ? 27 : DATA.pack_plan_weeks[0];
     state.weekMax = DATA.pack_plan_weeks[DATA.pack_plan_weeks.length - 1];
     refreshPackPlanFilterOptions();
     try { renderAllReactive(); } catch (err) { console.error('renderAllReactive tras cargar Horizon falló:', err); }
@@ -877,6 +878,23 @@ function tarifaForWeek(r, week) {
   // esta ruta (típico cuando la única vigencia guardada empieza recién en Maestro, ej. desde PP30):
   // esas semanas de antes corresponden a la tarifa inicial/base, no a la tarifa nueva.
   return r.tarifa_inicial;
+}
+
+// Igual que tarifaForWeek pero para el % de adjudicación nueva — así el Target Actual usa el %
+// que realmente regía cada semana en vez de aplanar todo con el % vigente actual: antes de la
+// primera versión registrada usa el % inicial (con eso Target Actual = Target Inicial hasta que
+// llega el primer cambio real), y de ahí en adelante, el % de cada tramo registrado.
+function pctForWeek(r, week) {
+  // sin vigencias, o ninguna trae % registrado (vigencias viejas/incrustadas, solo con tarifa) —
+  // el % nunca se trackeó por semana para esta ruta, se usa el vigente actual, plano, como antes.
+  if (!r.vigencias || !r.vigencias.some(v => v.pct !== undefined)) return r.pct_adj_nueva;
+  for (const v of r.vigencias) {
+    if (v.pct === undefined) continue;
+    if ((v.desde == null || week >= v.desde) && (v.hasta == null || week <= v.hasta)) {
+      return v.hasta == null ? r.pct_adj_nueva : v.pct;
+    }
+  }
+  return r.pct_adj_inicial;
 }
 
 // aplica overrides del maestro + filtro de Pack Plan sobre la ruta base -> "ruta efectiva"
@@ -974,7 +992,7 @@ function computeActualTargetSeries(routes, weeks) {
   return weeks.map(w => {
     const num = base.reduce((a, r) => {
       const routeTotalTrips = r.pct_adj_inicial > 0 ? (r.viajes_estimados / r.pct_adj_inicial) : r.viajes_estimados;
-      const newTrips = r.pct_adj_nueva * routeTotalTrips;
+      const newTrips = pctForWeek(r, w) * routeTotalTrips;
       return a + tarifaForWeek(r, w) * newTrips;
     }, 0);
     return num / totalViajes;
