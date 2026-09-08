@@ -1810,11 +1810,30 @@ const DATA = {"routes": [{"proveedor": "LOGISTICA INTERMODAL DEL PERU SAC", "rut
 // escribirla). Se guarda solo para esta pestaña (sessionStorage) — al
 // cerrar el navegador o abrir en otro equipo, hay que volver a ingresarla.
 const ROLE_PASSWORDS = { 'Hfpe26J*': 'jefe', 'Opex*26': 'coordinador' };
-// Ventana de Pack Plan de la temporada (misma que DATA.pack_plan_weeks en el Dashboard, PP21-PP40).
-// Se usa para que cada versión de tarifa/adjudicación registre desde qué Pack Plan rige — así el
-// Dashboard puede mostrar el histórico como escalón por semana en vez de aplanarlo con el valor
-// más reciente para toda la temporada.
-const PACK_PLAN_RANGE = Array.from({ length: 20 }, (_, i) => i + 21);
+// Fecha de inicio de cada Pack Plan (sacado de HORIZON_FORECAST, columna "Dispatch Date" agrupada
+// por columna "Pack Plan" — el Pack Plan no es más que una clasificación/etiqueta de semana, así
+// que a partir de la fecha que el usuario ingresa como "vigente desde" podemos calcular solos a
+// qué Pack Plan corresponde, sin pedírselo aparte. packPlanForDate(fecha) devuelve el Pack Plan
+// más reciente cuyo inicio sea <= la fecha dada (o null si es anterior a toda la temporada).
+// NOTA: si el Horizon de una temporada futura corre otras semanas, esta tabla hay que actualizarla
+// con el mismo procedimiento (min("Dispatch Date") por "Pack Plan", Mode = Marítimo).
+const PACK_PLAN_DATE_RANGES = [
+  { pp: 21, from: '2026-05-26' }, { pp: 22, from: '2026-05-28' }, { pp: 23, from: '2026-06-04' },
+  { pp: 24, from: '2026-06-10' }, { pp: 25, from: '2026-06-18' }, { pp: 26, from: '2026-06-25' },
+  { pp: 27, from: '2026-07-02' }, { pp: 28, from: '2026-07-09' }, { pp: 29, from: '2026-07-16' },
+  { pp: 30, from: '2026-07-22' }, { pp: 31, from: '2026-07-30' }, { pp: 32, from: '2026-08-06' },
+  { pp: 33, from: '2026-08-12' }, { pp: 34, from: '2026-08-18' }, { pp: 35, from: '2026-08-25' },
+  { pp: 36, from: '2026-09-03' }, { pp: 37, from: '2026-09-10' }, { pp: 38, from: '2026-09-16' },
+  { pp: 39, from: '2026-09-23' }, { pp: 40, from: '2026-09-30' }, { pp: 41, from: '2026-10-07' },
+];
+function packPlanForDate(dateStr) {
+  if (!dateStr) return null;
+  let found = null;
+  for (const r of PACK_PLAN_DATE_RANGES) {
+    if (dateStr >= r.from) found = r.pp; else break;
+  }
+  return found;
+}
 function getStoredRole() {
   try { return sessionStorage.getItem('core_role') || null; } catch (e) { return null; }
 }
@@ -2194,7 +2213,7 @@ function renderMasterTable() {
           <div class="field-group ${state.role !== 'jefe' ? 'locked' : ''}"><label>Nueva % Adjudicación ${state.role === 'jefe' ? '*' : ''}${state.role !== 'jefe' ? ' 🔒 Jefe' : ''}</label><input type="number" step="1" min="0" max="100" class="f-pct" value="${Math.round(currentPct*100)}" ${state.role !== 'jefe' ? 'disabled' : ''}></div>
           <div class="field-group"><label>Fecha inicio vigencia *</label><input type="date" class="f-inicio" value="${todayISO()}"></div>
           <div class="field-group"><label>Fecha vencimiento *</label><input type="date" class="f-fin"></div>
-          <div class="field-group"><label>Vigente desde Pack Plan *</label><select class="f-pp-desde">${PACK_PLAN_RANGE.map(w => `<option value="${w}">PP${w}</option>`).join('')}</select></div>
+          <div class="field-group"><label>Pack Plan (automático)</label><input type="text" class="f-pp-preview" value="${(() => { const pp = packPlanForDate(todayISO()); return pp ? 'PP' + pp : '—'; })()}" disabled></div>
         </div>
         <div class="role-note">${state.role
           ? `Editando como <b>${state.role === 'jefe' ? 'Jefe' : 'Coordinador'}</b> — ${state.role === 'jefe' ? 'puedes cambiar la % de adjudicación; la tarifa queda bloqueada (la edita Coordinador)' : 'puedes cambiar la tarifa; la % de adjudicación queda bloqueada (la edita Jefe)'}.`
@@ -2247,10 +2266,11 @@ function wireRowEvents() {
       const pctRaw = parseFloat(form.querySelector('.f-pct').value);
       const inicio = form.querySelector('.f-inicio').value;
       const fin = form.querySelector('.f-fin').value;
-      const ppDesde = parseInt(form.querySelector('.f-pp-desde').value, 10);
       const errEl = document.getElementById('err-' + s);
-      if (isNaN(tarifa) || isNaN(pctRaw) || !inicio || !fin || isNaN(ppDesde)) { errEl.style.display = 'block'; return; }
+      if (isNaN(tarifa) || isNaN(pctRaw) || !inicio || !fin) { errEl.style.display = 'block'; return; }
       if (fin <= inicio) { errEl.textContent = 'La fecha de vencimiento debe ser posterior a la fecha de inicio.'; errEl.style.display = 'block'; return; }
+      const ppDesde = packPlanForDate(inicio);
+      if (ppDesde === null) { errEl.textContent = `La fecha de inicio (${inicio}) es anterior al arranque de temporada (PP21, ${PACK_PLAN_DATE_RANGES[0].from}) — revísala.`; errEl.style.display = 'block'; return; }
       errEl.style.display = 'none';
       const pct = pctRaw / 100;
 
@@ -2320,6 +2340,13 @@ document.getElementById('infoToggleBtn').addEventListener('click', () => {
   const show = note.hidden;
   note.hidden = !show;
   btn.setAttribute('aria-expanded', String(show));
+});
+
+document.getElementById('masterTable').addEventListener('input', (e) => {
+  if (!e.target.classList.contains('f-inicio')) return;
+  const preview = e.target.closest('.edit-form-grid').querySelector('.f-pp-preview');
+  const pp = packPlanForDate(e.target.value);
+  preview.value = pp ? 'PP' + pp : (e.target.value ? 'Fuera de temporada (antes de PP21)' : '—');
 });
 
 async function init() {
