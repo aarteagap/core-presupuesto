@@ -1906,16 +1906,21 @@ async function loadOverridesFromSupabase() {
   }
 }
 
+// Devuelve true/false — el llamador SOLO debe avisarle al usuario "guardado" si esto resuelve en
+// true. Antes se mostraba el toast de éxito de inmediato sin esperar esta respuesta, así que si
+// Supabase rechazaba el guardado (ej. columna nueva que aún no existe porque no se corrió el SQL
+// más reciente), el usuario veía "guardado" igual y el cambio se perdía en silencio al recargar.
 async function saveOverrideToSupabase(key, r, entry) {
-  if (!sb) return;
+  if (!sb) return false;
   try {
-    await sb.from('tarifa_overrides_historial').insert({
+    const { error: errHist } = await sb.from('tarifa_overrides_historial').insert({
       route_key: key, proveedor: r.proveedor, ruta: r.ruta,
       tarifa_nueva: entry.tarifa_nueva, pct_adj_nueva: entry.pct_adj_nueva,
       fecha_inicio: entry.fecha_inicio, fecha_vencimiento: entry.fecha_vencimiento,
       pack_plan_desde: entry.pack_plan_desde ?? null,
       updated_by: entry.updated_by || null,
     });
+    if (errHist) throw errHist;
     const { error } = await sb.from('tarifa_overrides').upsert({
       route_key: key, proveedor: r.proveedor, ruta: r.ruta,
       tarifa_actual: entry.tarifa_nueva, pct_adj_nueva: entry.pct_adj_nueva,
@@ -1925,9 +1930,11 @@ async function saveOverrideToSupabase(key, r, entry) {
     });
     if (error) throw error;
     setSyncStatus('✓ Guardado en Supabase');
+    return true;
   } catch (err) {
     console.error('Error guardando tarifa en Supabase:', err);
     setSyncStatus('⚠ No se pudo guardar en Supabase (quedó solo local) — revisa la consola');
+    return { error: err };
   }
 }
 
@@ -2280,7 +2287,7 @@ function wireRowEvents() {
     btn.addEventListener('click', () => { state.openKey = null; renderMasterTable(); });
   });
   document.querySelectorAll('[data-action="save-edit"]').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       if (!state.role) { alert('Ingresa tu clave (Jefe o Coordinador) antes de guardar.'); promptForRole(); return; }
       const key = decodeURIComponent(btn.dataset.key);
       const s = slug(key);
@@ -2327,10 +2334,18 @@ function wireRowEvents() {
       state.overrides.set(key, existing);
       state.openKey = null;
       renderMasterTable();
-      showToast();
       window.parent.postMessage({ type: 'tariff-updated', key, value: { tarifa_actual: existing.tarifa_actual, pct_adj_nueva: existing.pct_adj_nueva } }, '*');
       const routeObj = DATA.routes.find(x => routeKey(x) === key);
-      if (routeObj) saveOverrideToSupabase(key, routeObj, entry);
+      const saved = routeObj ? await saveOverrideToSupabase(key, routeObj, entry) : false;
+      // Solo confirmamos "guardado" si Supabase realmente lo aceptó — antes se mostraba el toast
+      // de inmediato sin esperar esto, y si Supabase rechazaba el cambio (ej. columna nueva sin
+      // crear en la base) el usuario veía "guardado" igual y el cambio se perdía al recargar.
+      if (saved === true) {
+        showToast();
+      } else {
+        const detail = saved && saved.error && saved.error.message ? `\n\nDetalle: ${saved.error.message}` : '';
+        alert(`⚠ El cambio se aplicó solo en esta pantalla — NO se pudo guardar en Supabase. Si recargas la página, se va a perder.${detail}\n\nRevisa tu conexión, o si hace poco agregamos un campo nuevo a la base de datos (pack_plan_desde), confirma que ya corriste el SQL actualizado en Supabase.`);
+      }
     });
   });
 }
