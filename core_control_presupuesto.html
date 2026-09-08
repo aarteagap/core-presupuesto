@@ -873,7 +873,10 @@ function tarifaForWeek(r, week) {
       return v.hasta == null ? r.tarifa_actual : v.tarifa;
     }
   }
-  return r.tarifa_actual;
+  // Ninguna vigencia cubre esta semana — es anterior a la PRIMERA versión jamás registrada para
+  // esta ruta (típico cuando la única vigencia guardada empieza recién en Maestro, ej. desde PP30):
+  // esas semanas de antes corresponden a la tarifa inicial/base, no a la tarifa nueva.
+  return r.tarifa_inicial;
 }
 
 // aplica overrides del maestro + filtro de Pack Plan sobre la ruta base -> "ruta efectiva"
