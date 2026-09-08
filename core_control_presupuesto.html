@@ -1670,6 +1670,7 @@ try { renderAll(); } catch (err) { console.error('renderAll inicial falló (revi
   .master-route-name { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--text); }
   .master-route-name .m-tag { display: inline-block; font-family: var(--mono); font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.05em; padding: 1px 6px; border-radius: 3px; margin-left: 8px; background: rgba(139,148,158,0.14); color: var(--text2); border: 1px solid var(--border2); vertical-align: middle; }
   .master-route-name .m-tag.sinbase { background: var(--yellow-dim); color: var(--yellow-bright); border-color: rgba(227,179,65,0.4); }
+  .master-route-name .m-tag.warn { background: rgba(248,81,73,0.14); color: #ff6a63; border-color: rgba(248,81,73,0.4); }
   .m-sub-row { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 6px; }
   .m-sub { font-family: var(--mono); font-size: 10px; color: var(--text3); }
   .m-sub b { color: var(--text2); font-weight: 600; }
@@ -2132,10 +2133,24 @@ function matchesFilter(r) {
 // =====================================================================
 // # 05 RENDER TABLA MAESTRA
 // =====================================================================
+// % de adjudicación vigente sumado por ruta, entre TODOS los proveedores de esa ruta (no solo
+// los que queden visibles con el filtro actual) — para avisar si una ruta no suma 100%, por
+// ejemplo si se le sube el % a un proveedor sin bajárselo a los demás de la misma ruta.
+function pctTotalsByRuta() {
+  const totals = {};
+  DATA.routes.forEach(r => {
+    const ov = state.overrides.get(routeKey(r));
+    const pct = ov ? ov.pct_adj_nueva : r.pct_adj_nueva;
+    totals[r.ruta] = (totals[r.ruta] || 0) + pct;
+  });
+  return totals;
+}
+
 function renderMasterTable() {
   const el = document.getElementById('masterTable');
   const rows = DATA.routes.filter(matchesFilter);
   document.getElementById('toolbarCount').textContent = `${rows.length} registro(s) proveedor · ruta`;
+  const rutaTotals = pctTotalsByRuta();
 
   if (!rows.length) {
     el.innerHTML = `<div class="empty-state">Ningún registro coincide con el filtro actual.</div>`;
@@ -2150,12 +2165,14 @@ function renderMasterTable() {
     const currentPct = ov ? ov.pct_adj_nueva : r.pct_adj_nueva;
     const vigencia = ov && ov.historial.length ? ov.historial[ov.historial.length - 1] : null;
     const isOpen = state.openKey === key;
+    const rutaTotal = rutaTotals[r.ruta] || 0;
+    const rutaOff = Math.abs(rutaTotal - 1) > 0.005;
 
     return `
     <div class="master-row" data-key="${encodeURIComponent(key)}">
       <div class="master-row-head">
         <div>
-          <span class="master-route-name">${r.proveedor} — ${r.ruta}${r.sin_base ? '<span class="m-tag sinbase">Sin tarifa base</span>' : ''}${ov ? '<span class="m-tag">Editado</span>' : ''}</span>
+          <span class="master-route-name">${r.proveedor} — ${r.ruta}${r.sin_base ? '<span class="m-tag sinbase">Sin tarifa base</span>' : ''}${ov ? '<span class="m-tag">Editado</span>' : ''}${rutaOff ? `<span class="m-tag warn" title="Sumando el % Adjudicación vigente de todos los proveedores de esta ruta">⚠ Ruta suma ${fmtPct(rutaTotal)}, no 100%</span>` : ''}</span>
           <div class="m-sub-row">
             <span class="m-sub">Viajes estimados (fijo): <b>${fmtNum(r.viajes_estimados,2)}</b></span>
             <span class="m-sub">Tarifa inicial (fija): <b>${fmtUSD(r.tarifa_inicial,{decimals:2})}</b></span>
@@ -2235,11 +2252,29 @@ function wireRowEvents() {
       if (isNaN(tarifa) || isNaN(pctRaw) || !inicio || !fin || isNaN(ppDesde)) { errEl.style.display = 'block'; return; }
       if (fin <= inicio) { errEl.textContent = 'La fecha de vencimiento debe ser posterior a la fecha de inicio.'; errEl.style.display = 'block'; return; }
       errEl.style.display = 'none';
+      const pct = pctRaw / 100;
+
+      // Aviso si, CON este cambio ya aplicado, la ruta (entre todos sus proveedores) no queda
+      // sumando 100% de adjudicación — ej. si se sube un proveedor a 100% pero no se les baja a
+      // los demás de la misma ruta. No bloquea el guardado, solo avisa (puede ser una transición
+      // a propósito mientras se terminan de editar todos los proveedores de esa ruta).
+      const thisRoute = DATA.routes.find(x => routeKey(x) === key);
+      if (thisRoute) {
+        const sameRuta = DATA.routes.filter(r => r.ruta === thisRoute.ruta);
+        const rutaTotal = sameRuta.reduce((a, r) => {
+          if (routeKey(r) === key) return a + pct;
+          const ov2 = state.overrides.get(routeKey(r));
+          return a + (ov2 ? ov2.pct_adj_nueva : r.pct_adj_nueva);
+        }, 0);
+        if (Math.abs(rutaTotal - 1) > 0.005) {
+          const proceed = confirm(`Con este cambio, la ruta "${thisRoute.ruta}" quedaría sumando ${Math.round(rutaTotal * 100)}% de adjudicación entre todos sus proveedores (debería sumar 100%). ¿Guardar de todas formas?`);
+          if (!proceed) return;
+        }
+      }
 
       const updatedBy = askWhoIsSaving();
       if (updatedBy === null) return; // canceló el popup — no se guarda nada
 
-      const pct = pctRaw / 100;
       const existing = state.overrides.get(key) || { historial: [] };
       const entry = { tarifa_nueva: tarifa, pct_adj_nueva: pct, fecha_inicio: inicio, fecha_vencimiento: fin, pack_plan_desde: ppDesde, creado: todayISO(), updated_by: updatedBy };
       existing.tarifa_actual = tarifa;
