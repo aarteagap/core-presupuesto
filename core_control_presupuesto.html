@@ -1239,17 +1239,16 @@ function renderCustomTooltip(context, tooltipEl, exec, targetInicial, targetFsc,
   const week = weeks[idx];
   const fcl = exec.fclWeek[idx];
   const desv = exec.usdDelta[idx];
-  const execVal = exec.solid[idx] !== null ? exec.solid[idx] : exec.dashed[idx];
   const isProjected = exec.solid[idx] === null && exec.dashed[idx] !== null;
   const targetActual = targetActualSeries[idx];
-  const deltaActual = (execVal !== null && targetActual !== null && targetActual !== undefined) ? execVal - targetActual : null;
+  const weekVal = exec.weeklyAvg[idx];
+  const deltaActual = (weekVal !== null && targetActual !== null && targetActual !== undefined) ? weekVal - targetActual : null;
 
   const rows = [
     { color: chartPalette.initial, name: 'Target Inicial', val: targetInicial !== null ? fmtUSD(targetInicial) : '—' },
     { color: chartPalette.actual, name: 'Target Actual', val: (targetActual !== null && targetActual !== undefined) ? fmtUSD(targetActual) : '—' },
     { color: chartPalette.fsc, name: 'Target FSC', val: targetFsc !== null ? fmtUSD(targetFsc, { decimals: 2 }) : '—' },
-    { color: chartPalette.executed, name: `Target Ejecutado${isProjected ? ' (proy., acum.)' : ' (acumulado)'}`, val: execVal !== null ? fmtUSD(execVal) : '—' },
-    { color: chartPalette.muted, name: 'Target Ejecutado (esta semana)', val: exec.weeklyAvg[idx] !== null ? fmtUSD(exec.weeklyAvg[idx]) : '—' },
+    { color: chartPalette.executed, name: `Target Ejecutado${isProjected ? ' (proy.)' : ''}`, val: exec.weeklyAvg[idx] !== null ? fmtUSD(exec.weeklyAvg[idx]) : '—' },
     { color: chartPalette.muted, name: 'FCL contenedores', val: fmtNum(fcl, 1) },
   ];
 
@@ -1977,9 +1976,26 @@ function parseHorizonWorkbook(arrayBuffer) {
   if (!sheet) throw new Error('No se encontró la hoja "HORIZON_FORECAST" en el archivo.');
   const rows = XLSX.utils.sheet_to_json(sheet, { defval: null });
 
+  // "Consolidados": una misma Instruction (1 camión = 1 instruction) que aparece más de una vez
+  // con distinto Packing — normalmente Olmos y Chao, un mismo contenedor repartido entre 2
+  // destinos. Mientras no se define cómo repartir/valorizar esos casos correctamente, se excluyen
+  // por completo (no se cuentan ni como Confirmado ni como Proyectado en ningún Packing).
+  const packingsByInstruction = {};
+  rows.forEach(row => {
+    if (row['Mode'] !== 'Marítimo') return;
+    if (row['Status'] !== 'Confirmado' && row['Status'] !== 'Proyectado') return;
+    const instr = row['Instruction'];
+    if (instr === null || instr === undefined || instr === '') return;
+    (packingsByInstruction[instr] = packingsByInstruction[instr] || new Set()).add(row['Packing']);
+  });
+  const consolidadoInstructions = new Set(
+    Object.entries(packingsByInstruction).filter(([, packings]) => packings.size > 1).map(([instr]) => instr)
+  );
+
   const confirmado = new Map(); // "proveedor|||ruta|||pp" -> fcl acumulado
   const proyectado = new Map(); // "ruta|||pp" -> fcl acumulado
   let unmapped = 0;
+  let consolidadosFcl = 0, consolidadosCount = 0;
 
   rows.forEach(row => {
     if (row['Mode'] !== 'Marítimo') return;
@@ -1988,6 +2004,8 @@ function parseHorizonWorkbook(arrayBuffer) {
     const pol = row['POL'], packing = row['Packing'], pp = row['Pack Plan'];
     const fcl = Number(row['FCL']) || 0;
     if (!pol || !packing || pp === null || pp === undefined) return;
+    const instr = row['Instruction'];
+    if (instr && consolidadoInstructions.has(instr)) { consolidadosFcl += fcl; consolidadosCount++; return; }
     const ruta = `${String(pol).toUpperCase()} - ${String(packing).toUpperCase()} - ${String(pol).toUpperCase()}`;
 
     if (status === 'Confirmado') {
@@ -2010,7 +2028,7 @@ function parseHorizonWorkbook(arrayBuffer) {
     return { proveedor: '', ruta, pack_plan: Number(pp), fcl: Math.round(fcl * 1000) / 1000, status: 'proyectado' };
   });
 
-  return { rows: [...confirmadoRows, ...proyectadoRows], unmapped };
+  return { rows: [...confirmadoRows, ...proyectadoRows], unmapped, consolidadosFcl, consolidadosCount };
 }
 
 async function uploadHorizonToSupabase(rows) {
@@ -2039,11 +2057,14 @@ document.getElementById('horizonFileInput').addEventListener('change', async (e)
   try {
     const buf = await file.arrayBuffer();
     setHorizonStatus('Procesando HORIZON_FORECAST…');
-    const { rows, unmapped } = parseHorizonWorkbook(buf);
+    const { rows, unmapped, consolidadosFcl, consolidadosCount } = parseHorizonWorkbook(buf);
     if (!rows.length) throw new Error('No se encontraron filas Marítimo/Confirmado o Proyectado en el archivo.');
     setHorizonStatus(`Subiendo ${rows.length} fila(s) a Supabase…`);
     await uploadHorizonToSupabase(rows);
-    setHorizonStatus(`✓ Horizon actualizado (${rows.length} filas)${unmapped ? ` · ${fmtNum(unmapped,1)} FCL de transportistas no mapeados, excluidos` : ''}`);
+    const notas = [];
+    if (unmapped) notas.push(`${fmtNum(unmapped,1)} FCL de transportistas no mapeados, excluidos`);
+    if (consolidadosCount) notas.push(`${consolidadosCount} fila(s) (${fmtNum(consolidadosFcl,1)} FCL) de instructions consolidadas (mismo camión, 2 Packing) excluidas hasta definir esa lógica`);
+    setHorizonStatus(`✓ Horizon actualizado (${rows.length} filas)${notas.length ? ` · ${notas.join(' · ')}` : ''}`);
   } catch (err) {
     console.error('Error cargando Horizon:', err);
     setHorizonStatus('⚠ Error cargando Horizon (revisa la consola)');
