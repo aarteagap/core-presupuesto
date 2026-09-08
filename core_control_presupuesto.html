@@ -554,6 +554,7 @@
       <div class="y-scale-control">
         <label for="yAxisMinInput">Eje Y desde US$</label>
         <input type="number" id="yAxisMinInput" value="0" step="50" min="0">
+        <button type="button" id="yAxisAutoBtn" class="chip-btn" style="padding:4px 9px;" title="Ajusta el eje Y automáticamente según las líneas visibles con los filtros actuales">↻ Auto-ajustar</button>
         <button type="button" id="yAxisResetBtn" class="chip-btn" style="padding:4px 9px;">Reset a $0</button>
       </div>
       <div class="trend-note">Línea punteada = proyección con status "Proyectado" (sin transportista asignado aún)</div>
@@ -647,6 +648,7 @@ const state = {
   search: '', rutaFilter: '', provFilter: '', mode: 'Marítimo', onlyNegative: false,
   weekMin: DATA.pack_plan_weeks.includes(27) ? 27 : DATA.pack_plan_weeks[0], weekMax: DATA.pack_plan_weeks[DATA.pack_plan_weeks.length - 1],
   yAxisMin: 0,                           // piso ajustable del eje Y del gráfico semanal (US$)
+  yAxisAuto: true,                       // si está en true, el piso se recalcula solo con cada render según lo que quede visible (filtros + líneas ocultas con la leyenda)
   groupBy: 'proveedor',
   selectedKeys: new Set(),               // claves incluidas en KPIs/gráficos (según groupBy)
   expandedKeys: new Set(),
@@ -1189,6 +1191,30 @@ function renderWeeklyTrend() {
     return d > 0 ? chartPalette.negative : (d < 0 ? chartPalette.positive : chartPalette.muted);
   };
 
+  // Auto-ajuste del piso del eje Y (izquierda, US$): en vez de dejarlo siempre en $0 (o lo que sea
+  // que el usuario haya tipeado a mano), calcula el mínimo real entre las líneas VISIBLES en este
+  // momento (según filtros activos + líneas que no estén ocultas con los botones de la leyenda) y
+  // pone el piso justo debajo, para que no queden todas apretadas arriba del gráfico. Solo se
+  // activa mientras el usuario no haya escrito un valor a mano (state.yAxisAuto).
+  if (state.yAxisAuto) {
+    const yDatasetsRaw = [
+      { idx: 1, data: flatInicial }, { idx: 2, data: flatActual }, { idx: 3, data: flatFsc },
+      { idx: 4, data: exec.solid }, { idx: 5, data: exec.dashed },
+    ];
+    const visibleVals = yDatasetsRaw
+      .filter(d => !state.chartHiddenDs.has(d.idx))
+      .flatMap(d => d.data)
+      .filter(v => v !== null && v !== undefined && isFinite(v));
+    if (visibleVals.length) {
+      const minVisible = Math.min(...visibleVals);
+      state.yAxisMin = Math.max(0, Math.floor((minVisible * 0.92) / 50) * 50);
+    } else {
+      state.yAxisMin = 0;
+    }
+    const inputEl = document.getElementById('yAxisMinInput');
+    if (inputEl) inputEl.value = state.yAxisMin;
+  }
+
   if (weeklyChartInstance) weeklyChartInstance.destroy();
   weeklyChartInstance = new Chart(ctx, {
     data: {
@@ -1241,12 +1267,10 @@ document.getElementById('chartLegend').addEventListener('click', (e) => {
   if (!btn || !weeklyChartInstance) return;
   const indices = btn.dataset.ds.split(',').map(Number);
   const nowVisible = !weeklyChartInstance.isDatasetVisible(indices[0]);
-  indices.forEach(i => {
-    weeklyChartInstance.setDatasetVisibility(i, nowVisible);
-    if (nowVisible) state.chartHiddenDs.delete(i); else state.chartHiddenDs.add(i);
-  });
-  weeklyChartInstance.update();
-  btn.classList.toggle('off', !nowVisible);
+  indices.forEach(i => { if (nowVisible) state.chartHiddenDs.delete(i); else state.chartHiddenDs.add(i); });
+  // Se re-renderiza completo (no solo setDatasetVisibility + update) para que, si el eje Y está en
+  // modo automático, el piso se recalcule según lo que quede visible después de este toggle.
+  try { renderWeeklyTrend(); } catch (err) { console.error('renderWeeklyTrend falló:', err); }
 });
 
 // tooltip HTML externo con colores dinámicos (rojo = sobrecosto, verde = ahorro)
@@ -1567,11 +1591,17 @@ document.getElementById('themeToggle').addEventListener('click', () => {
 });
 
 document.getElementById('yAxisMinInput').addEventListener('input', (e) => {
+  state.yAxisAuto = false; // el usuario tipeó un valor a mano — deja de autoajustarse hasta que pida "Auto-ajustar" de nuevo
   const v = parseFloat(e.target.value);
   state.yAxisMin = isNaN(v) ? 0 : Math.max(0, v);
   try { renderWeeklyTrend(); } catch (err) { console.error('renderWeeklyTrend falló:', err); }
 });
+document.getElementById('yAxisAutoBtn').addEventListener('click', () => {
+  state.yAxisAuto = true;
+  try { renderWeeklyTrend(); } catch (err) { console.error('renderWeeklyTrend falló:', err); }
+});
 document.getElementById('yAxisResetBtn').addEventListener('click', () => {
+  state.yAxisAuto = false;
   state.yAxisMin = 0;
   document.getElementById('yAxisMinInput').value = 0;
   try { renderWeeklyTrend(); } catch (err) { console.error('renderWeeklyTrend falló:', err); }
