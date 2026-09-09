@@ -1176,13 +1176,21 @@ function renderWeeklyTrend() {
   const { targetInicial, targetFsc } = computeFlatTargets(routes);
   const targetActualSeries = computeActualTargetSeries(routes, weeks);
   const exec = computeExecutedSeries(routes, weeks);
-  const flatInicial = weeks.map(() => targetInicial);
-  const flatFsc = weeks.map(() => targetFsc);
-  const flatActual = targetActualSeries;
-  // delta de cada punto ejecutado vs Target Actual DE ESA SEMANA (para colorear el dato en el punto)
+  // Antes de PP27 los contratos ni siquiera habían arrancado — no se muestra ninguna línea de
+  // target ahí. Y entre PP27 y PP29 (antes de PP30) todavía no había ningún cambio de tarifa
+  // registrado: en ese tramo solo se usa Target Inicial como referencia, así que Target Actual se
+  // oculta (aunque numéricamente ya coincide con Target Inicial) para no duplicar la misma línea.
+  const CONTRATOS_DESDE_PP = 27;
+  const TARGET_ACTUAL_DESDE_PP = 30;
+  const flatInicial = weeks.map(w => w < CONTRATOS_DESDE_PP ? null : targetInicial);
+  const flatFsc = weeks.map(w => w < CONTRATOS_DESDE_PP ? null : targetFsc);
+  const flatActual = targetActualSeries.map((v, i) => weeks[i] < TARGET_ACTUAL_DESDE_PP ? null : v);
+  // delta de cada punto ejecutado vs su referencia de esa semana (para colorear el dato en el
+  // punto): antes de PP30 todavía no hay Target Actual (no había cambios de tarifa registrados),
+  // así que la referencia es Target Inicial; de PP30 en adelante, Target Actual.
   const deltaVsActual = weeks.map((w, i) => {
     const v = exec.solid[i] !== null ? exec.solid[i] : exec.dashed[i];
-    const ta = targetActualSeries[i];
+    const ta = w < TARGET_ACTUAL_DESDE_PP ? targetInicial : targetActualSeries[i];
     if (v === null || v === undefined || ta === null || ta === undefined) return null;
     return v - ta;
   });
@@ -1245,7 +1253,7 @@ function renderWeeklyTrend() {
         legend: { display: false },
         tooltip: {
           enabled: false,
-          external: (context) => renderCustomTooltip(context, tooltipEl, exec, targetInicial, targetFsc, targetActualSeries, weeks, ctx, chartPalette),
+          external: (context) => renderCustomTooltip(context, tooltipEl, exec, targetInicial, targetFsc, flatActual, weeks, ctx, chartPalette),
         },
       },
       scales: {
