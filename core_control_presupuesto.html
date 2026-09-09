@@ -991,12 +991,19 @@ function computeActualTargetSeries(routes, weeks) {
   const base = routes.filter(r => !r.sin_base);
   const totalViajes = base.reduce((a, r) => a + r.viajes_estimados, 0);
   if (totalViajes <= 0) return weeks.map(() => null);
+  const grouped = groupBy(base, r => r.ruta);
   return weeks.map(w => {
-    const num = base.reduce((a, r) => {
-      const routeTotalTrips = r.pct_adj_inicial > 0 ? (r.viajes_estimados / r.pct_adj_inicial) : r.viajes_estimados;
-      const newTrips = pctForWeek(r, w) * routeTotalTrips;
-      return a + tarifaForWeek(r, w) * newTrips;
-    }, 0);
+    let num = 0;
+    grouped.forEach((list) => {
+      // Dentro de una misma ruta, el % de adjudicación de sus proveedores debería sumar 100% —
+      // así que el target de ESA ruta esa semana es simplemente el promedio ponderado directo por
+      // el % vigente de cada proveedor (tarifa × % adjudicación), sin intentar "reconstruir" un
+      // pool total de viajes a partir del % antiguo — eso se rompía apenas un proveedor arrancaba
+      // con 0% de adjudicación original (ej. uno que entra recién con la edición nueva).
+      const rutaViajes = list.reduce((a, r) => a + r.viajes_estimados, 0);
+      const rutaTarget = list.reduce((a, r) => a + tarifaForWeek(r, w) * pctForWeek(r, w), 0);
+      num += rutaTarget * rutaViajes;
+    });
     return num / totalViajes;
   });
 }
