@@ -2356,6 +2356,20 @@ function wireRowEvents() {
       errEl.style.display = 'none';
       const pct = pctRaw / 100;
 
+      // Aviso si YA existe una versión que también empieza en este mismo Pack Plan: al ordenar el
+      // historial por Pack Plan, la más reciente GUARDADA (no la de fecha más reciente) es la que
+      // queda "vigente hacia adelante" — así que sin este aviso, una versión nueva puede reemplazar
+      // en silencio a otra que en teoría debía seguir rigiendo (ej. si el cambio real era MÁS
+      // adelante en la temporada, pero por error las dos fechas cayeron en la misma semana).
+      const existingForCollision = state.overrides.get(key);
+      if (existingForCollision && existingForCollision.historial.length) {
+        const clash = existingForCollision.historial.find(h => h.pack_plan_desde === ppDesde);
+        if (clash) {
+          const proceed = confirm(`Ya hay una versión guardada que también empieza en PP${ppDesde} (Tarifa ${fmtUSD(clash.tarifa_nueva,{decimals:2})} · % Adj ${fmtPct(clash.pct_adj_nueva)}, guardada el ${clash.creado}). Si guardas esta, la reemplaza — esa versión anterior deja de verse en el Dashboard desde PP${ppDesde} en adelante.\n\n¿Seguro que la fecha de inicio (${inicio}) es la correcta? Si el cambio real era para más adelante, cancela y ajusta la fecha.\n\n¿Guardar de todas formas?`);
+          if (!proceed) return;
+        }
+      }
+
       // Aviso si, CON este cambio ya aplicado, la ruta (entre todos sus proveedores) no queda
       // sumando 100% de adjudicación — ej. si se sube un proveedor a 100% pero no se les baja a
       // los demás de la misma ruta. No bloquea el guardado, solo avisa (puede ser una transición
