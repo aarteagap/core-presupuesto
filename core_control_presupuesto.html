@@ -988,7 +988,12 @@ function computeFlatTargets(routes) {
 // estuviera vigente en cada Pack Plan (según "vigencias") — por eso ya no es una línea plana: si una
 // ruta registró un cambio de tarifa a partir de cierta semana, el Target Actual da un salto ahí.
 function computeActualTargetSeries(routes, weeks) {
-  const base = routes.filter(r => !r.sin_base);
+  // A diferencia de Target Inicial, acá NO se excluyen las rutas "sin_base" (sin tarifa base
+  // original, ej. un proveedor que se sumó recién a una ruta vía Maestro) — esta fórmula no
+  // depende de tarifa_inicial/presupuesto_total para nada, solo del % de adjudicación VIGENTE.
+  // Excluirlas dejaba su % "flotando" fuera del cálculo: si a un proveedor sin_base se le daba
+  // 10% de adjudicación, ese 10% de peso simplemente desaparecía en vez de sumar.
+  const base = routes;
   const totalViajes = base.reduce((a, r) => a + r.viajes_estimados, 0);
   if (totalViajes <= 0) return weeks.map(() => null);
   const grouped = groupBy(base, r => r.ruta);
@@ -1303,6 +1308,8 @@ function renderCustomTooltip(context, tooltipEl, exec, targetInicial, targetFsc,
   const targetActual = targetActualSeries[idx];
   const weekVal = exec.weeklyAvg[idx];
   const deltaActual = (weekVal !== null && targetActual !== null && targetActual !== undefined) ? weekVal - targetActual : null;
+  const deltaInicial = (weekVal !== null && targetInicial !== null && targetInicial !== undefined) ? weekVal - targetInicial : null;
+  const deltaFsc = (weekVal !== null && targetFsc !== null && targetFsc !== undefined) ? weekVal - targetFsc : null;
 
   const rows = [
     { color: chartPalette.initial, name: 'Target Inicial', val: targetInicial !== null ? fmtUSD(targetInicial) : '—' },
@@ -1313,7 +1320,8 @@ function renderCustomTooltip(context, tooltipEl, exec, targetInicial, targetFsc,
   ];
 
   const devClass = desv < 0 ? 'red' : (desv > 0 ? 'green' : '');
-  const deltaClass = deltaActual !== null ? (deltaActual > 0 ? 'red' : (deltaActual < 0 ? 'green' : '')) : '';
+  const classFor = (d) => d === null ? '' : (d > 0 ? 'red' : (d < 0 ? 'green' : ''));
+  const deltaRow = (label, d) => d === null ? '' : `<div class="ct-row"><span class="ct-deltalabel">${label}</span><span class="ct-deltaval ${classFor(d)}">${d > 0 ? '+' : ''}${fmtUSD(d)}</span></div>`;
 
   tooltipEl.innerHTML = `
     <div class="ct-title">PP${week}</div>
@@ -1321,7 +1329,9 @@ function renderCustomTooltip(context, tooltipEl, exec, targetInicial, targetFsc,
     <div class="ct-divider"></div>
     <div class="ct-row"><span class="ct-devlabel">Desviación total de la semana</span></div>
     <div class="ct-row"><span class="ct-name"></span><span class="ct-devval ${devClass}">${fmtUSD(desv, { sign: true })}</span></div>
-    ${deltaActual !== null ? `<div class="ct-row"><span class="ct-deltalabel">Ejecutado vs. Target Actual</span><span class="ct-deltaval ${deltaClass}">${deltaActual > 0 ? '+' : ''}${fmtUSD(deltaActual)}</span></div>` : ''}
+    ${deltaRow('Ejecutado vs. Target Inicial', deltaInicial)}
+    ${deltaRow('Ejecutado vs. Target Actual', deltaActual)}
+    ${deltaRow('Ejecutado vs. Target FSC', deltaFsc)}
   `;
 
   const canvasRect = canvasEl.getBoundingClientRect();
