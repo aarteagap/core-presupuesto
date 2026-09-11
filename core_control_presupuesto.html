@@ -1313,7 +1313,7 @@ function renderCustomTooltip(context, tooltipEl, exec, targetInicial, targetFsc,
 
   const rows = [
     { color: chartPalette.initial, name: 'Target Inicial', val: targetInicial !== null ? fmtUSD(targetInicial) : '—' },
-    { color: chartPalette.actual, name: 'Target Actual', val: (targetActual !== null && targetActual !== undefined) ? fmtUSD(targetActual) : '—' },
+    { color: chartPalette.actual, name: 'Target Actual', val: (targetActual !== null && targetActual !== undefined) ? fmtUSD(targetActual, { decimals: 2 }) : '—' },
     { color: chartPalette.fsc, name: 'Target FSC', val: targetFsc !== null ? fmtUSD(targetFsc, { decimals: 2 }) : '—' },
     { color: chartPalette.executed, name: `Target Ejecutado${isProjected ? ' (proy.)' : ''}`, val: exec.weeklyAvg[idx] !== null ? fmtUSD(exec.weeklyAvg[idx]) : '—' },
     { color: chartPalette.muted, name: 'FCL contenedores', val: fmtNum(fcl, 1) },
