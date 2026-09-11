@@ -1340,6 +1340,11 @@ function renderCustomTooltip(context, tooltipEl, exec, targetInicial, targetFsc,
   let top = tooltip.caretY + (canvasRect.top - wrapRect.top) - 10;
   const maxLeft = wrapRect.width - 230;
   if (left > maxLeft) left = tooltip.caretX + (canvasRect.left - wrapRect.left) - 244;
+  // Con las filas nuevas (Inicial/Actual/FSC vs. ejecutado) el cuadro creció y podía quedar cortado
+  // abajo del gráfico — se acota también verticalmente contra el alto real del cuadro.
+  const tooltipHeight = tooltipEl.offsetHeight;
+  const maxTop = wrapRect.height - tooltipHeight - 8;
+  if (top > maxTop) top = maxTop;
   tooltipEl.style.left = left + 'px';
   tooltipEl.style.top = Math.max(0, top) + 'px';
   tooltipEl.style.opacity = 1;
