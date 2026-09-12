@@ -1033,7 +1033,11 @@ function computeActualTargetSeries(routes, weeks) {
 
 // ---- Target Ejecutado acumulado por semana (confirmado + proyectado punteado) ----
 function computeExecutedSeries(routes, weeks) {
-  const base = routes.filter(r => !r.sin_base);
+  // Igual que en computeActualTargetSeries: NO se excluyen las rutas "sin_base" — el Target
+  // Ejecutado se arma con FCL real y tarifaForWeek(), ninguno de los dos depende de tarifa_inicial.
+  // Excluirlas (como antes) dejaba SIN NINGUNA línea a las rutas sin tarifa base cuando eran las
+  // únicas activas con el filtro — ej. las rutas "consolidado", que son sin_base a propósito.
+  const base = routes;
   const totalViajes = base.reduce((a, r) => a + r.viajes_estimados, 0);
   const keys = new Set(base.map(routeKey));
   const rutasActivas = new Set(base.map(r => r.ruta));
