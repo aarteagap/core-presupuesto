@@ -2064,36 +2064,67 @@ function parseHorizonWorkbook(arrayBuffer) {
   if (!sheet) throw new Error('No se encontró la hoja "HORIZON_FORECAST" en el archivo.');
   const rows = XLSX.utils.sheet_to_json(sheet, { defval: null });
 
-  // "Consolidados": una misma Instruction (1 camión = 1 instruction) que aparece más de una vez
-  // con distinto Packing — normalmente Olmos y Chao, un mismo contenedor repartido entre 2
-  // destinos. Mientras no se define cómo repartir/valorizar esos casos correctamente, se excluyen
-  // por completo (no se cuentan ni como Confirmado ni como Proyectado en ningún Packing).
-  const packingsByInstruction = {};
+  // "Consolidados": una misma Instruction (1 camión) que aparece más de una vez con distinto
+  // Packing — normalmente Olmos y Chao, un mismo camión que carga parte en una planta y completa
+  // en la otra. La ruta que se les asigna depende de cuál Packing se cargó PRIMERO según
+  // "Dispatch Date": si carga primero en Olmos y completa en Chao, va a "POL - OLMOS - CHAO - POL";
+  // si es al revés, a "POL - CHAO - OLMOS - POL". El FCL de ambas filas se suma en una sola.
+  function parseDMY(s) {
+    if (!s) return null;
+    const [d, m, y] = String(s).split('/').map(Number);
+    if (!d || !m || !y) return null;
+    return Date.UTC(y, m - 1, d);
+  }
+  const rowsByInstruction = {};
   rows.forEach(row => {
     if (row['Mode'] !== 'Marítimo') return;
     if (row['Status'] !== 'Confirmado' && row['Status'] !== 'Proyectado') return;
     const instr = row['Instruction'];
     if (instr === null || instr === undefined || instr === '') return;
-    (packingsByInstruction[instr] = packingsByInstruction[instr] || new Set()).add(row['Packing']);
+    (rowsByInstruction[instr] = rowsByInstruction[instr] || []).push(row);
   });
   const consolidadoInstructions = new Set(
-    Object.entries(packingsByInstruction).filter(([, packings]) => packings.size > 1).map(([instr]) => instr)
+    Object.entries(rowsByInstruction)
+      .filter(([, list]) => new Set(list.map(r => r['Packing'])).size > 1)
+      .map(([instr]) => instr)
   );
 
   const confirmado = new Map(); // "proveedor|||ruta|||pp" -> fcl acumulado
   const proyectado = new Map(); // "ruta|||pp" -> fcl acumulado
   let unmapped = 0;
-  let consolidadosFcl = 0, consolidadosCount = 0;
+  const consolidadoHandled = new Set(); // cada Instruction consolidada se procesa una sola vez (no por cada fila)
 
   rows.forEach(row => {
     if (row['Mode'] !== 'Marítimo') return;
     const status = row['Status'];
     if (status !== 'Confirmado' && status !== 'Proyectado') return;
+    const instr = row['Instruction'];
+
+    if (instr && consolidadoInstructions.has(instr)) {
+      if (consolidadoHandled.has(instr)) return;
+      consolidadoHandled.add(instr);
+      const list = rowsByInstruction[instr];
+      const sorted = [...list].sort((a, b) => (parseDMY(a['Dispatch Date']) ?? Infinity) - (parseDMY(b['Dispatch Date']) ?? Infinity));
+      const primero = sorted[0], segundo = sorted[sorted.length - 1];
+      const pol = primero['POL'], pp = primero['Pack Plan'];
+      if (!pol || pp === null || pp === undefined) return;
+      const totalFcl = list.reduce((a, r) => a + (Number(r['FCL']) || 0), 0);
+      const ruta = `${String(pol).toUpperCase()} - ${String(primero['Packing']).toUpperCase()} - ${String(segundo['Packing']).toUpperCase()} - ${String(pol).toUpperCase()}`;
+      if (status === 'Confirmado') {
+        const prov = TRANSPORT_OPERATOR_MAP[row['Transport Operator']];
+        if (!prov) { unmapped += totalFcl; return; }
+        const key = `${prov}|||${ruta}|||${pp}`;
+        confirmado.set(key, (confirmado.get(key) || 0) + totalFcl);
+      } else {
+        const key = `${ruta}|||${pp}`;
+        proyectado.set(key, (proyectado.get(key) || 0) + totalFcl);
+      }
+      return;
+    }
+
     const pol = row['POL'], packing = row['Packing'], pp = row['Pack Plan'];
     const fcl = Number(row['FCL']) || 0;
     if (!pol || !packing || pp === null || pp === undefined) return;
-    const instr = row['Instruction'];
-    if (instr && consolidadoInstructions.has(instr)) { consolidadosFcl += fcl; consolidadosCount++; return; }
     const ruta = `${String(pol).toUpperCase()} - ${String(packing).toUpperCase()} - ${String(pol).toUpperCase()}`;
 
     if (status === 'Confirmado') {
@@ -2116,7 +2147,7 @@ function parseHorizonWorkbook(arrayBuffer) {
     return { proveedor: '', ruta, pack_plan: Number(pp), fcl: Math.round(fcl * 1000) / 1000, status: 'proyectado' };
   });
 
-  return { rows: [...confirmadoRows, ...proyectadoRows], unmapped, consolidadosFcl, consolidadosCount };
+  return { rows: [...confirmadoRows, ...proyectadoRows], unmapped, consolidadosCount: consolidadoInstructions.size };
 }
 
 async function uploadHorizonToSupabase(rows) {
@@ -2145,13 +2176,13 @@ document.getElementById('horizonFileInput').addEventListener('change', async (e)
   try {
     const buf = await file.arrayBuffer();
     setHorizonStatus('Procesando HORIZON_FORECAST…');
-    const { rows, unmapped, consolidadosFcl, consolidadosCount } = parseHorizonWorkbook(buf);
+    const { rows, unmapped, consolidadosCount } = parseHorizonWorkbook(buf);
     if (!rows.length) throw new Error('No se encontraron filas Marítimo/Confirmado o Proyectado en el archivo.');
     setHorizonStatus(`Subiendo ${rows.length} fila(s) a Supabase…`);
     await uploadHorizonToSupabase(rows);
     const notas = [];
     if (unmapped) notas.push(`${fmtNum(unmapped,1)} FCL de transportistas no mapeados, excluidos`);
-    if (consolidadosCount) notas.push(`${consolidadosCount} fila(s) (${fmtNum(consolidadosFcl,1)} FCL) de instructions consolidadas (mismo camión, 2 Packing) excluidas hasta definir esa lógica`);
+    if (consolidadosCount) notas.push(`${consolidadosCount} instruction(s) consolidada(s) (mismo camión, 2 Packing) enrutadas por orden de Dispatch Date`);
     setHorizonStatus(`✓ Horizon actualizado (${rows.length} filas)${notas.length ? ` · ${notas.join(' · ')}` : ''}`);
   } catch (err) {
     console.error('Error cargando Horizon:', err);
