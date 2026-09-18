@@ -605,6 +605,7 @@
       <button type="button" class="legend-toggle" data-ds="2"><span class="legend-dot" style="background:var(--horizon-cyan)"></span>Target Actual (tarifa + % adjudicación nueva)</button>
       <button type="button" class="legend-toggle" data-ds="3"><span class="legend-dot" style="background:#8e5ec2"></span>Target FSC (recargo fijo por packing)</button>
       <button type="button" class="legend-toggle" data-ds="4,5"><span class="legend-dot" style="background:var(--horizon-coral)"></span>Target Ejecutado (acumulado real, punteado = proyectado)</button>
+      <button type="button" class="legend-toggle" data-ds="6"><span class="legend-dot" style="background:var(--text3)"></span>Σ Valorización semanal (US$)</button>
     </div>
   </div>
 
@@ -695,7 +696,7 @@ const state = {
   selectedKeys: new Set(),               // claves incluidas en KPIs/gráficos (según groupBy)
   expandedKeys: new Set(),
   overrides: new Map(),                  // "prov|||ruta" -> { tarifa_actual, pct_adj_nueva, tiene_nueva, historial:[...] }
-  chartHiddenDs: new Set(),              // índices de dataset del gráfico semanal ocultados manualmente (botones de leyenda)
+  chartHiddenDs: new Set([6]),           // índices de dataset del gráfico semanal ocultados manualmente (botones de leyenda) — Σ Valorización semanal arranca oculta por defecto
 };
 function routeKey(r) { return r.proveedor + '|||' + r.ruta; }
 function initSelection() {
@@ -1025,12 +1026,56 @@ function fscForRoute(r) {
 function computeFlatTargets(routes) {
   const base = routes.filter(r => !r.sin_base);
   const totalViajes = base.reduce((a, r) => a + r.viajes_estimados, 0);
-  if (totalViajes <= 0) return { targetInicial: null, totalViajes: 0, targetFsc: null };
-  const targetInicial = base.reduce((a, r) => a + r.presupuesto_total, 0) / totalViajes;
-  const baseFsc = base.filter(r => fscForRoute(r) !== null);
+  const targetInicial = totalViajes > 0 ? base.reduce((a, r) => a + r.presupuesto_total, 0) / totalViajes : null;
+  // FSC es un recargo FIJO por packing (no depende de tarifa_inicial/presupuesto) — a diferencia de
+  // Target Inicial, SÍ debe incluir rutas "sin_base" (ej. los consolidados), igual que Target
+  // Actual. Se pondera por viajes_estimados como siempre; si ninguna ruta elegible tiene
+  // viajes_estimados (p.ej. el filtro quedó solo con consolidados, que son 0 por diseño), se cae a
+  // un promedio simple entre las rutas elegibles en vez de devolver null.
+  const baseFsc = routes.filter(r => fscForRoute(r) !== null);
   const totalViajesFsc = baseFsc.reduce((a, r) => a + r.viajes_estimados, 0);
-  const targetFsc = totalViajesFsc > 0 ? baseFsc.reduce((a, r) => a + fscForRoute(r) * r.viajes_estimados, 0) / totalViajesFsc : null;
+  const targetFsc = totalViajesFsc > 0
+    ? baseFsc.reduce((a, r) => a + fscForRoute(r) * r.viajes_estimados, 0) / totalViajesFsc
+    : (baseFsc.length ? baseFsc.reduce((a, r) => a + fscForRoute(r), 0) / baseFsc.length : null);
   return { targetInicial, totalViajes, targetFsc };
+}
+
+// ---- Target FSC POR SEMANA, ponderado por FCL REAL (no viajes_estimados) — así los consolidados
+// (que tienen viajes_estimados=0 a propósito) sí pesan cuando tienen despachos reales esa semana.
+// Misma estructura que computeExecutedSeries pero solo sobre rutas con fscForRoute() definido, y en
+// vez de promediar tarifaForWeek() promedia el recargo FSC fijo de cada ruta.
+function computeFscTargetSeries(routes, weeks) {
+  const base = routes.filter(r => fscForRoute(r) !== null);
+  if (!base.length) return weeks.map(() => null);
+  const keys = new Set(base.map(routeKey));
+  const rutasActivas = new Set(base.map(r => r.ruta));
+  const fscByRuta = new Map(base.map(r => [r.ruta, fscForRoute(r)]));
+
+  const fclConfPorSemana = {}, numConfPorSemana = {};
+  weeks.forEach(w => { fclConfPorSemana[w] = 0; numConfPorSemana[w] = 0; });
+  let lastConfirmedWeek = null;
+  DATA.fcl_by_week.forEach(row => {
+    if (!keys.has(row.proveedor + '|||' + row.ruta)) return;
+    fclConfPorSemana[row.pack_plan] = (fclConfPorSemana[row.pack_plan] || 0) + row.fcl;
+    numConfPorSemana[row.pack_plan] = (numConfPorSemana[row.pack_plan] || 0) + row.fcl * fscByRuta.get(row.ruta);
+  });
+  weeks.forEach(w => { if (fclConfPorSemana[w] > 0) lastConfirmedWeek = w; });
+
+  const fclProyPorSemana = {}, numProyPorSemana = {};
+  weeks.forEach(w => { fclProyPorSemana[w] = 0; numProyPorSemana[w] = 0; });
+  DATA.proyectado_by_week.forEach(row => {
+    if (!rutasActivas.has(row.ruta)) return;
+    if (lastConfirmedWeek !== null && row.pack_plan <= lastConfirmedWeek) return;
+    fclProyPorSemana[row.pack_plan] = (fclProyPorSemana[row.pack_plan] || 0) + row.fcl;
+    numProyPorSemana[row.pack_plan] = (numProyPorSemana[row.pack_plan] || 0) + row.fcl * fscByRuta.get(row.ruta);
+  });
+
+  return weeks.map(w => {
+    const isProjectedZone = lastConfirmedWeek !== null && w > lastConfirmedWeek;
+    const fcl = isProjectedZone ? fclProyPorSemana[w] : (fclConfPorSemana[w] || 0);
+    const num = isProjectedZone ? numProyPorSemana[w] : (numConfPorSemana[w] || 0);
+    return fcl > 0 ? num / fcl : null;
+  });
 }
 
 // ---- Target Actual POR SEMANA: Σ[TarifaVigenteEsaSemana × (%AdjNueva/%AdjInicial × ViajesEstimados_row)] / ΣViajesEstimados.
@@ -1117,7 +1162,7 @@ function computeExecutedSeries(routes, weeks) {
   // no los viajes estimados del presupuesto). Esta línea se recalculará sola si se cargan más
   // versiones de tarifa por periodo de vigencia (Loading Date) en el Maestro.
   let cumUsd = 0, cumFcl = 0;
-  const solid = [], dashed = [], fclWeek = [], usdDelta = [], weeklyAvg = [];
+  const solid = [], dashed = [], fclWeek = [], usdDelta = [], weeklyAvg = [], weeklyUsd = [];
   const tInicial = totalViajes > 0 ? base.reduce((a, r) => a + r.presupuesto_total, 0) / totalViajes : 0;
   weeks.forEach(w => {
     const isProjectedZone = lastConfirmedWeek !== null && w > lastConfirmedWeek;
@@ -1130,10 +1175,12 @@ function computeExecutedSeries(routes, weeks) {
     const tarifaEfectivaSemana = incFcl > 0 ? (incUsd / incFcl) : null;
     usdDelta.push(tarifaEfectivaSemana !== null ? (tInicial - tarifaEfectivaSemana) * incFcl : 0);
     weeklyAvg.push(tarifaEfectivaSemana);
+    // valorización ejecutada de la semana: FCL de esa semana x su(s) tarifa(s) vigente(s) (confirmado o proyectado)
+    weeklyUsd.push(incFcl > 0 ? incUsd : null);
     if (!isProjectedZone) { solid.push(val); dashed.push(w === lastConfirmedWeek ? val : null); }
     else { solid.push(null); dashed.push(val); }
   });
-  return { solid, dashed, fclWeek, usdDelta, weeklyAvg, lastConfirmedWeek, cumFclFinal: cumFcl };
+  return { solid, dashed, fclWeek, usdDelta, weeklyAvg, weeklyUsd, lastConfirmedWeek, cumFclFinal: cumFcl };
 }
 
 // =====================================================================
@@ -1164,8 +1211,8 @@ function computeWorstBestWeek(routes, weeks) {
 // filas "Ejecutado vs. ..." del tooltip del gráfico— y se suman en dólares sobre todo el rango
 // activo, para que la tarjeta pueda mostrar cualquiera de las 3 referencias.
 function computeBalanceByTarget(routes, weeks) {
-  const { targetFsc } = computeFlatTargets(routes);
   const targetActualSeries = computeActualTargetSeries(routes, weeks);
+  const targetFscSeries = computeFscTargetSeries(routes, weeks);
   const exec = computeExecutedSeries(routes, weeks);
   let desvActual = 0, desvFsc = 0;
   weeks.forEach((w, i) => {
@@ -1174,7 +1221,8 @@ function computeBalanceByTarget(routes, weeks) {
     if (weekVal === null || weekVal === undefined || !fcl) return;
     const ta = targetActualSeries[i];
     if (ta !== null && ta !== undefined) desvActual += (ta - weekVal) * fcl;
-    if (targetFsc !== null && targetFsc !== undefined) desvFsc += (targetFsc - weekVal) * fcl;
+    const tf = targetFscSeries[i];
+    if (tf !== null && tf !== undefined) desvFsc += (tf - weekVal) * fcl;
   });
   return { desvActual, desvFsc };
 }
@@ -1345,6 +1393,9 @@ function renderWeeklyTrend() {
           datalabels: { display: (c) => c.dataset.data[c.dataIndex] !== null, align: 'top', offset: 7, color: execPointColor, backgroundColor: chartPalette.labelBg, borderColor: chartPalette.grid, borderWidth: 1, borderRadius: 5, padding: { top: 3, bottom: 3, left: 5, right: 5 }, font: { family: 'Inter', size: 9, weight: '700' }, formatter: (v, c) => execPointLabel(c) } },
         { type: 'line', label: 'Target Ejecutado (proyectado)', data: exec.dashed, yAxisID: 'y', borderColor: chartPalette.executed, borderDash: [6, 5], borderWidth: 2, pointRadius: 3.5, pointHoverRadius: 5.5, pointStyle: 'circle', pointBackgroundColor: chartPalette.executedFill, pointBorderColor: chartPalette.executed, pointBorderWidth: 2, tension: 0.3, spanGaps: true, order: 0,
           datalabels: { display: (c) => c.dataset.data[c.dataIndex] !== null, align: 'top', offset: 7, color: execPointColor, backgroundColor: chartPalette.labelBg, borderColor: chartPalette.grid, borderWidth: 1, borderRadius: 5, padding: { top: 3, bottom: 3, left: 5, right: 5 }, font: { family: 'Inter', size: 9, weight: '700' }, formatter: (v, c) => execPointLabel(c) } },
+        // Σ Valorización semanal: FCL de la semana x tarifa vigente esa semana. Escala muy distinta
+        // (US$ totales, no US$/viaje) — eje propio oculto (y2) para no chocar con el resto.
+        { type: 'line', label: 'Σ Valorización semanal', data: exec.weeklyUsd, yAxisID: 'y2', borderColor: chartPalette.muted, borderWidth: 1.5, borderDash: [2, 3], pointRadius: 2, pointHoverRadius: 4, pointBackgroundColor: chartPalette.muted, tension: 0.2, spanGaps: true, order: 4, datalabels: { display: false } },
       ],
     },
     options: {
@@ -1362,6 +1413,7 @@ function renderWeeklyTrend() {
         x: { ticks: { color: chartPalette.tick, font: { family: 'Inter', size: 9, weight: '600' } }, grid: { color: chartPalette.grid }, border: { display: false } },
         y: { position: 'left', min: state.yAxisMin, grace: '10%', ticks: { stepSize: 200, color: chartPalette.tick, font: { family: 'Inter', size: 9 }, callback: (v) => '$' + v.toLocaleString('en-US') }, grid: { color: chartPalette.grid }, border: { display: false }, title: { display: true, text: 'US$ / viaje (Target)', color: chartPalette.tick, font: { family: 'Inter', size: 9, weight: '600' } } },
         y1: { position: 'right', ticks: { color: chartPalette.tick, font: { family: 'Inter', size: 9 } }, grid: { display: false }, border: { display: false }, title: { display: true, text: 'FCL contenedores', color: chartPalette.tick, font: { family: 'Inter', size: 9, weight: '600' } } },
+        y2: { display: false },
       },
     },
   });
@@ -1400,6 +1452,7 @@ function renderCustomTooltip(context, tooltipEl, exec, targetInicial, targetFsc,
 
   const week = weeks[idx];
   const fcl = exec.fclWeek[idx];
+  const weeklyUsd = exec.weeklyUsd[idx];
   const desv = exec.usdDelta[idx];
   const isProjected = exec.solid[idx] === null && exec.dashed[idx] !== null;
   const targetActual = targetActualSeries[idx];
@@ -1413,7 +1466,7 @@ function renderCustomTooltip(context, tooltipEl, exec, targetInicial, targetFsc,
     { color: chartPalette.actual, name: 'Target Actual', val: (targetActual !== null && targetActual !== undefined) ? fmtUSD(targetActual, { decimals: 2 }) : '—' },
     { color: chartPalette.fsc, name: 'Target FSC', val: targetFsc !== null ? fmtUSD(targetFsc, { decimals: 2 }) : '—' },
     { color: chartPalette.executed, name: `Target Ejecutado${isProjected ? ' (proy.)' : ''}`, val: exec.weeklyAvg[idx] !== null ? fmtUSD(exec.weeklyAvg[idx]) : '—' },
-    { color: chartPalette.muted, name: 'FCL contenedores', val: fmtNum(fcl, 1) },
+    { color: chartPalette.muted, name: 'Σ Valorización semanal', val: weeklyUsd !== null ? `${fmtUSD(weeklyUsd, { decimals: 0 })} (${fmtNum(fcl, 1)} FCL)` : '—' },
   ];
 
   const devClass = desv < 0 ? 'red' : (desv > 0 ? 'green' : '');
