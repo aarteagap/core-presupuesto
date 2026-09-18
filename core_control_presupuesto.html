@@ -979,7 +979,7 @@ function isConsolidadoRuta(ruta) { return ruta.split(' - ').length > 3; }
 function matchesGlobalFilters(r) {
   const term = state.search.trim().toLowerCase();
   const matchesSearch = !term || r.proveedor.toLowerCase().includes(term) || r.ruta.toLowerCase().includes(term);
-  const matchesRuta = !state.rutaFilter || r.ruta === state.rutaFilter;
+  const matchesRuta = !state.rutaFilter || (state.rutaFilter === 'CONSOLIDADOS' ? isConsolidadoRuta(r.ruta) : r.ruta === state.rutaFilter);
   const matchesProv = !state.provFilter || r.proveedor === state.provFilter;
   const matchesMode = r.modo === state.mode;
   const matchesNegative = !state.onlyNegative || (r.desviacion !== null && r.desviacion < 0);
@@ -1614,11 +1614,16 @@ function renderProviderChecklist() {
 // # 06 FILTROS — poblar selects y wiring
 // =====================================================================
 function populateFilterSelects() {
-  const rutas = [...new Set(DATA.routes.map(r => r.ruta))].sort();
+  // Las rutas "consolidado" (2 Packing, ej. PAITA-OLMOS-CHAO-PAITA) se muestran como UNA sola
+  // opción "CONSOLIDADOS" en vez de una entrada por cada una — así se pueden ver las dos juntas
+  // sin necesitar un selector de múltiples rutas.
+  const rutasNormales = [...new Set(DATA.routes.filter(r => !isConsolidadoRuta(r.ruta)).map(r => r.ruta))].sort();
+  const hayConsolidados = DATA.routes.some(r => isConsolidadoRuta(r.ruta));
   const provs = [...new Set(DATA.routes.map(r => r.proveedor))].sort();
   const rutaSel = document.getElementById('rutaFilter');
   const provSel = document.getElementById('provFilter');
-  rutas.forEach(r => rutaSel.insertAdjacentHTML('beforeend', `<option value="${r}">${r}</option>`));
+  rutasNormales.forEach(r => rutaSel.insertAdjacentHTML('beforeend', `<option value="${r}">${r}</option>`));
+  if (hayConsolidados) rutaSel.insertAdjacentHTML('beforeend', `<option value="CONSOLIDADOS">🔀 CONSOLIDADOS (2 Packing)</option>`);
   provs.forEach(p => provSel.insertAdjacentHTML('beforeend', `<option value="${p}">${p}</option>`));
 
   const ppMinSel = document.getElementById('ppMinFilter');
@@ -1665,7 +1670,17 @@ function renderAll() {
 // # 09 EVENTOS
 // =====================================================================
 document.getElementById('searchInput').addEventListener('input', (e) => { state.search = e.target.value; renderAllReactive(); });
-document.getElementById('rutaFilter').addEventListener('change', (e) => { state.rutaFilter = e.target.value; renderAllReactive(); });
+document.getElementById('rutaFilter').addEventListener('change', (e) => {
+  state.rutaFilter = e.target.value;
+  // Elegir "CONSOLIDADOS" en el filtro no tendría sentido si el botón de abajo los sigue
+  // excluyendo — se prende solo para que la selección se refleje de inmediato.
+  if (state.rutaFilter === 'CONSOLIDADOS' && !state.includeConsolidados) {
+    state.includeConsolidados = true;
+    const cBtn = document.getElementById('consolidadosBtn');
+    if (cBtn) { cBtn.classList.add('active'); cBtn.textContent = 'Consolidados: incluidos'; }
+  }
+  renderAllReactive();
+});
 document.getElementById('provFilter').addEventListener('change', (e) => { state.provFilter = e.target.value; renderAllReactive(); });
 document.getElementById('ppMinFilter').addEventListener('change', (e) => {
   state.weekMin = parseInt(e.target.value, 10);
