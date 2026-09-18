@@ -31,11 +31,43 @@
   .frame-wrap { flex: 1; min-height: 0; position: relative; }
   .view-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: none; background: var(--bg); }
   .view-frame.active { display: block; }
+
+  .access-gate {
+    position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(circle at 30% 20%, rgba(10,132,255,.18), transparent 55%), var(--bg);
+  }
+  .access-card {
+    width: 100%; max-width: 340px; margin: 0 20px; background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 20px; padding: 32px 28px; box-shadow: 0 20px 60px rgba(0,0,0,.35); text-align: center;
+  }
+  .access-title { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; color: var(--text); }
+  .access-sub { font-size: 12.5px; color: var(--text3); margin-top: 4px; margin-bottom: 22px; }
+  .access-input {
+    width: 100%; background: var(--bg3); border: 1px solid var(--border2); border-radius: 12px; color: var(--text);
+    font-family: var(--sans); font-size: 15px; padding: 12px 14px; outline: none; text-align: center; letter-spacing: .04em;
+  }
+  .access-input:focus { border-color: var(--blue); }
+  .access-error { font-size: 11.5px; color: #ff6a63; margin-top: 10px; min-height: 14px; }
+  .access-btn {
+    width: 100%; margin-top: 14px; padding: 11px; border: none; border-radius: 12px; background: var(--blue);
+    color: #fff; font-family: var(--sans); font-size: 13.5px; font-weight: 700; cursor: pointer; transition: background .15s;
+  }
+  .access-btn:hover { background: var(--blue-bright); }
 </style>
 </head>
 <body>
 
-<div class="frame-wrap">
+<div class="access-gate" id="accessGate">
+  <div class="access-card">
+    <div class="access-title">CORE</div>
+    <div class="access-sub">Control de Presupuesto de Transporte · Hortifrut</div>
+    <input type="password" id="accessInput" class="access-input" placeholder="Clave de acceso" autocomplete="off">
+    <div class="access-error" id="accessError"></div>
+    <button type="button" class="access-btn" id="accessBtn">Ingresar</button>
+  </div>
+</div>
+
+<div class="frame-wrap" id="frameWrap" style="display:none;">
   <iframe id="frame-dashboard" class="view-frame active"></iframe>
   <iframe id="frame-maestro" class="view-frame"></iframe>
   <iframe id="frame-adjudicacion" class="view-frame"></iframe>
@@ -3132,6 +3164,47 @@ window.parent.postMessage({ type: 'ready', view: 'adjudicacion' }, '*');
 
 <script>
 (function() {
+  // Puerta de acceso general a la plataforma — separada de las claves de Jefe/Coordinador de
+  // Maestro (esas son por rol, para editar; esta es solo para poder ABRIR la app). Es seguridad
+  // de cara al usuario, no real (esto es HTML estático, cualquiera que vea el código fuente puede
+  // leer la clave) — como con el resto de claves de la plataforma, alcanza para que no entre
+  // cualquiera por casualidad al link público. Se recuerda por pestaña (sessionStorage): se vuelve
+  // a pedir si se cierra el navegador.
+  var ACCESS_PASSWORD = 'HF_core*';
+  var gate = document.getElementById('accessGate');
+  var frameWrap = document.getElementById('frameWrap');
+  var accessInput = document.getElementById('accessInput');
+  var accessError = document.getElementById('accessError');
+  var accessBtn = document.getElementById('accessBtn');
+
+  function tryUnlock() {
+    if (accessInput.value === ACCESS_PASSWORD) {
+      try { sessionStorage.setItem('core_access_ok', '1'); } catch (e) {}
+      unlockApp();
+    } else {
+      accessError.textContent = 'Clave incorrecta.';
+      accessInput.value = '';
+      accessInput.focus();
+    }
+  }
+  accessBtn.addEventListener('click', tryUnlock);
+  accessInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') tryUnlock(); });
+
+  var alreadyUnlocked = false;
+  try { alreadyUnlocked = sessionStorage.getItem('core_access_ok') === '1'; } catch (e) {}
+  if (alreadyUnlocked) {
+    unlockApp();
+  } else {
+    setTimeout(function() { accessInput.focus(); }, 50);
+  }
+
+  function unlockApp() {
+    gate.style.display = 'none';
+    frameWrap.style.display = '';
+    initApp();
+  }
+
+  function initApp() {
   function loadTpl(id) {
     var raw = document.getElementById(id).textContent;
     return raw.split('<%SCRIPT_END%>').join('<' + '/script>');
@@ -3175,6 +3248,7 @@ window.parent.postMessage({ type: 'ready', view: 'adjudicacion' }, '*');
       frames[v].classList.toggle('active', v === view);
     });
   }
+  } // fin initApp
 })();
 </script>
 </body>
