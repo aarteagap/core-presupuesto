@@ -3182,9 +3182,8 @@ window.parent.postMessage({ type: 'ready', view: 'adjudicacion' }, '*');
   // Puerta de acceso general a la plataforma — separada de las claves de Jefe/Coordinador de
   // Maestro (esas son por rol, para editar; esta es solo para poder ABRIR la app). Es seguridad
   // de cara al usuario, no real (esto es HTML estático, cualquiera que vea el código fuente puede
-  // leer la clave) — como con el resto de claves de la plataforma, alcanza para que no entre
-  // cualquiera por casualidad al link público. Se recuerda por pestaña (sessionStorage): se vuelve
-  // a pedir si se cierra el navegador.
+  // leer la clave) — alcanza para que no entre cualquiera por casualidad al link público. Se pide
+  // en cada carga/recarga de la página (sin persistencia), a propósito.
   var ACCESS_PASSWORD = 'HF_core*';
   var gate = document.getElementById('accessGate');
   var frameWrap = document.getElementById('frameWrap');
@@ -3194,7 +3193,6 @@ window.parent.postMessage({ type: 'ready', view: 'adjudicacion' }, '*');
 
   function tryUnlock() {
     if (accessInput.value === ACCESS_PASSWORD) {
-      try { sessionStorage.setItem('core_access_ok', '1'); } catch (e) {}
       unlockApp();
     } else {
       accessError.textContent = 'Clave incorrecta.';
@@ -3205,13 +3203,7 @@ window.parent.postMessage({ type: 'ready', view: 'adjudicacion' }, '*');
   accessBtn.addEventListener('click', tryUnlock);
   accessInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') tryUnlock(); });
 
-  var alreadyUnlocked = false;
-  try { alreadyUnlocked = sessionStorage.getItem('core_access_ok') === '1'; } catch (e) {}
-  if (alreadyUnlocked) {
-    unlockApp();
-  } else {
-    setTimeout(function() { accessInput.focus(); }, 50);
-  }
+  setTimeout(function() { accessInput.focus(); }, 50);
 
   function unlockApp() {
     gate.style.display = 'none';
