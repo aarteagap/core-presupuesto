@@ -696,7 +696,7 @@ const state = {
   selectedKeys: new Set(),               // claves incluidas en KPIs/gráficos (según groupBy)
   expandedKeys: new Set(),
   overrides: new Map(),                  // "prov|||ruta" -> { tarifa_actual, pct_adj_nueva, tiene_nueva, historial:[...] }
-  chartHiddenDs: new Set([6]),           // índices de dataset del gráfico semanal ocultados manualmente (botones de leyenda) — Σ Valorización semanal arranca oculta por defecto
+  chartHiddenDs: new Set(),              // índices de dataset del gráfico semanal ocultados manualmente (botones de leyenda)
 };
 function routeKey(r) { return r.proveedor + '|||' + r.ruta; }
 function initSelection() {
