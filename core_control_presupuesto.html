@@ -1335,25 +1335,19 @@ function renderWeeklyTrend() {
   const flatInicial = weeks.map(w => w < CONTRATOS_DESDE_PP ? null : targetInicial);
   const flatFsc = weeks.map(w => w < CONTRATOS_DESDE_PP ? null : targetFsc);
   const flatActual = targetActualSeries.map((v, i) => weeks[i] < TARGET_ACTUAL_DESDE_PP ? null : v);
-  // delta de cada punto ejecutado vs su referencia de esa semana (para colorear el dato en el
-  // punto): antes de PP30 todavía no hay Target Actual (no había cambios de tarifa registrados),
-  // así que la referencia es Target Inicial; de PP30 en adelante, Target Actual.
-  const deltaVsActual = weeks.map((w, i) => {
-    const v = exec.solid[i] !== null ? exec.solid[i] : exec.dashed[i];
-    const ta = w < TARGET_ACTUAL_DESDE_PP ? targetInicial : targetActualSeries[i];
-    if (v === null || v === undefined || ta === null || ta === undefined) return null;
-    return v - ta;
-  });
-
+  // Etiqueta sobre cada punto de Target Ejecutado: la MISMA "Desviación total de la semana" que ya
+  // muestra el tooltip (exec.usdDelta = (Target Inicial - tarifa efectiva de esa semana) x FCL de
+  // esa semana) — un monto en US$ totales, no un US$/viaje suelto como antes. Positivo = ahorro
+  // (verde), negativo = sobrecosto (rojo) — mismo criterio de color que ya usa el tooltip.
   const execPointLabel = (ctxPt) => {
-    const d = deltaVsActual[ctxPt.dataIndex];
+    const d = exec.usdDelta[ctxPt.dataIndex];
     if (d === null || d === undefined) return '';
-    return (d > 0 ? '+' : '') + fmtNum(d, 0);
+    return fmtUSD(d, { sign: true });
   };
   const execPointColor = (ctxPt) => {
-    const d = deltaVsActual[ctxPt.dataIndex];
+    const d = exec.usdDelta[ctxPt.dataIndex];
     if (d === null || d === undefined) return chartPalette.muted;
-    return d > 0 ? chartPalette.negative : (d < 0 ? chartPalette.positive : chartPalette.muted);
+    return d < 0 ? chartPalette.negative : (d > 0 ? chartPalette.positive : chartPalette.muted);
   };
 
   // Auto-ajuste del piso del eje Y (izquierda, US$): en vez de dejarlo siempre en $0 (o lo que sea
