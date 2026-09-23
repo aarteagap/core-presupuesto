@@ -2075,7 +2075,10 @@ const PACK_PLAN_DATE_RANGES = [
   { pp: 33, from: '2026-08-12' }, { pp: 34, from: '2026-08-18' }, { pp: 35, from: '2026-08-25' },
   { pp: 36, from: '2026-09-03' }, { pp: 37, from: '2026-09-10' }, { pp: 38, from: '2026-09-16' },
   { pp: 39, from: '2026-09-23' }, { pp: 40, from: '2026-09-30' }, { pp: 41, from: '2026-10-07' },
-  { pp: 42, from: '2026-10-14' },
+  { pp: 42, from: '2026-10-14' }, { pp: 43, from: '2026-10-21' }, { pp: 44, from: '2026-10-28' },
+  // Última semana confirmada en el Horizon a la fecha de esta carga — el resto del año (PP45-52)
+  // todavía no está definido ahí. Hay que volver a correr este mismo cálculo cuando el usuario
+  // suba una versión más nueva del archivo con esas semanas ya cargadas.
 ];
 function packPlanForDate(dateStr) {
   if (!dateStr) return null;
