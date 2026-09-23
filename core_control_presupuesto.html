@@ -2385,13 +2385,13 @@ async function exportToExcel() {
   const rows = DATA.routes.map(r => {
     const key = routeKey(r);
     const ov = state.overrides.get(key);
-    const vigencia = ov && ov.historial.length ? ov.historial[ov.historial.length - 1] : null;
+    const vig = vigenteHoy(r, ov);
     return {
       'Proveedor': r.proveedor, 'Ruta': r.ruta, 'Modo': r.modo,
       'Viajes estimados': r.viajes_estimados, 'Tarifa inicial (US$)': r.tarifa_inicial, '% Adj. inicial': r.pct_adj_inicial,
-      'Tarifa vigente (US$)': ov ? ov.tarifa_actual : r.tarifa_actual, '% Adj. vigente': ov ? ov.pct_adj_nueva : r.pct_adj_nueva,
-      'Vigencia desde': vigencia ? vigencia.fecha_inicio : '', 'Vigencia hasta': vigencia ? vigencia.fecha_vencimiento : '',
-      'Editado en Maestro': ov ? 'Sí' : 'No', 'Última edición por': (ov && ov.updated_by) || '',
+      'Tarifa vigente (US$)': vig.tarifa, '% Adj. vigente': vig.pct,
+      'Vigencia desde': vig.fecha_inicio || '', 'Vigencia hasta': vig.fecha_vencimiento || '',
+      'Editado en Maestro': ov ? 'Sí' : 'No', 'Última edición por': vig.updated_by || '',
     };
   });
   const routesByKey = new Map(DATA.routes.map(r => [routeKey(r), r]));
@@ -2469,11 +2469,28 @@ function matchesFilter(r) {
 // % de adjudicación vigente sumado por ruta, entre TODOS los proveedores de esa ruta (no solo
 // los que queden visibles con el filtro actual) — para avisar si una ruta no suma 100%, por
 // ejemplo si se le sube el % a un proveedor sin bajárselo a los demás de la misma ruta.
+// Versión REALMENTE vigente HOY para una ruta/proveedor — no la última guardada en
+// "tarifa_overrides" (esa puede ser una versión programada a futuro, con "Fecha inicio vigencia"
+// posterior a hoy, y ahí no debería mostrarse como la tarifa/% actual todavía). Recorre el
+// historial (más la tarifa/% inicial como "versión 0") y se queda con la de "fecha_inicio" más
+// reciente que ya haya arrancado (<= hoy); si dos versiones comparten la misma fecha_inicio, gana
+// la guardada más tarde (el historial ya viene ordenado por creado_en ascendente).
+function vigenteHoy(r, ov) {
+  const hoy = todayISO();
+  let best = { tarifa: r.tarifa_inicial, pct: r.pct_adj_inicial, fecha_inicio: null, fecha_vencimiento: null, updated_by: '' };
+  ((ov && ov.historial) || []).forEach(h => {
+    if (h.fecha_inicio && h.fecha_inicio <= hoy && (best.fecha_inicio === null || h.fecha_inicio >= best.fecha_inicio)) {
+      best = { tarifa: h.tarifa_nueva, pct: h.pct_adj_nueva, fecha_inicio: h.fecha_inicio, fecha_vencimiento: h.fecha_vencimiento, updated_by: h.updated_by || '' };
+    }
+  });
+  return best;
+}
+
 function pctTotalsByRuta() {
   const totals = {};
   DATA.routes.forEach(r => {
     const ov = state.overrides.get(routeKey(r));
-    const pct = ov ? ov.pct_adj_nueva : r.pct_adj_nueva;
+    const pct = vigenteHoy(r, ov).pct;
     totals[r.ruta] = (totals[r.ruta] || 0) + pct;
   });
   return totals;
@@ -2494,9 +2511,10 @@ function renderMasterTable() {
     const key = routeKey(r);
     const s = slug(key);
     const ov = state.overrides.get(key);
-    const currentTarifa = ov ? ov.tarifa_actual : r.tarifa_actual;
-    const currentPct = ov ? ov.pct_adj_nueva : r.pct_adj_nueva;
-    const vigencia = ov && ov.historial.length ? ov.historial[ov.historial.length - 1] : null;
+    const vig = vigenteHoy(r, ov);
+    const currentTarifa = vig.tarifa;
+    const currentPct = vig.pct;
+    const vigencia = vig.fecha_inicio ? vig : null;
     const isOpen = state.openKey === key;
     const rutaTotal = rutaTotals[r.ruta] || 0;
     const rutaOff = Math.abs(rutaTotal - 1) > 0.005;
@@ -2510,7 +2528,7 @@ function renderMasterTable() {
             <span class="m-sub">Viajes estimados (fijo): <b>${fmtNum(r.viajes_estimados,2)}</b></span>
             <span class="m-sub">Tarifa inicial (fija): <b>${fmtUSD(r.tarifa_inicial,{decimals:2})}</b></span>
             <span class="m-sub">% Adj. inicial (fijo): <b>${fmtPct(r.pct_adj_inicial)}</b></span>
-            <span class="m-sub vigente">Vigente: <b>${fmtUSD(currentTarifa,{decimals:2})} · ${fmtPct(currentPct)}</b>${vigencia ? ` · ${vigencia.fecha_inicio} → ${vigencia.fecha_vencimiento}` : ''}${ov && ov.updated_by ? ` · por <b>${ov.updated_by}</b>` : ''}</span>
+            <span class="m-sub vigente">Vigente: <b>${fmtUSD(currentTarifa,{decimals:2})} · ${fmtPct(currentPct)}</b>${vigencia ? ` · ${vigencia.fecha_inicio} → ${vigencia.fecha_vencimiento}` : ''}${vig.updated_by ? ` · por <b>${vig.updated_by}</b>` : ''}</span>
           </div>
         </div>
         <button class="edit-btn ${isOpen ? 'primary' : ''}" data-action="toggle-edit" data-key="${encodeURIComponent(key)}">${isOpen ? 'Cerrar' : 'Editar'}</button>
