@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-shell-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -679,8 +679,7 @@ function applyTheme(mode) {
   const t = document.getElementById('themeToggle');
   if (t) t.classList.toggle('on', mode === 'dark');
 }
-const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-applyTheme(prefersDark ? 'dark' : 'light');
+applyTheme('dark');
 
 // =====================================================================
 // # 03 ESTADO GLOBAL
@@ -2427,8 +2426,7 @@ function applyTheme(mode) {
   const t = document.getElementById('themeToggle');
   if (t) t.classList.toggle('on', mode === 'dark');
 }
-const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-applyTheme(prefersDark ? 'dark' : 'light');
+applyTheme('dark');
 document.getElementById('themeToggle').addEventListener('click', () => {
   const current = document.documentElement.getAttribute('data-theme');
   applyTheme(current === 'dark' ? 'light' : 'dark');
@@ -3007,8 +3005,7 @@ function applyTheme(mode) {
   const t = document.getElementById('themeToggle');
   t.classList.toggle('on', mode === 'dark');
 }
-const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-applyTheme(prefersDark ? 'dark' : 'light');
+applyTheme('dark');
 document.getElementById('themeToggle').addEventListener('click', () => {
   const current = document.documentElement.getAttribute('data-theme');
   applyTheme(current === 'dark' ? 'light' : 'dark');
