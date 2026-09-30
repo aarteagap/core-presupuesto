@@ -2250,8 +2250,14 @@ async function saveOverrideToSupabase(key, r, entry) {
 async function deleteOverrideVersion(key, r, entryId) {
   if (!sb) return false;
   try {
-    const { error: delErr } = await sb.from('tarifa_overrides_historial').delete().eq('id', entryId);
+    // .select('id') hace que Supabase devuelva las filas realmente borradas — si RLS bloquea el
+    // DELETE (permiso faltante), Postgres no tira error, simplemente filtra la fila del WHERE y
+    // "borra" 0 filas en silencio. Sin este chequeo, el código creía que había funcionado.
+    const { data: delData, error: delErr } = await sb.from('tarifa_overrides_historial').delete().eq('id', entryId).select('id');
     if (delErr) throw delErr;
+    if (!delData || !delData.length) {
+      throw new Error(`Supabase no borró ninguna fila (id=${entryId}). Probablemente falta el permiso de DELETE en la tabla tarifa_overrides_historial — confirma que corriste el SQL actualizado (supabase_schema.sql) y que le diste "Run query".`);
+    }
     const { data: remaining, error: selErr } = await sb.from('tarifa_overrides_historial')
       .select('*').eq('route_key', key).order('creado_en', { ascending: false }).limit(1);
     if (selErr) throw selErr;
@@ -2266,8 +2272,11 @@ async function deleteOverrideVersion(key, r, entryId) {
       });
       if (upErr) throw upErr;
     } else {
-      const { error: delPtrErr } = await sb.from('tarifa_overrides').delete().eq('route_key', key);
+      const { data: delPtrData, error: delPtrErr } = await sb.from('tarifa_overrides').delete().eq('route_key', key).select('route_key');
       if (delPtrErr) throw delPtrErr;
+      if (!delPtrData || !delPtrData.length) {
+        throw new Error('La versión del historial se borró, pero no se pudo borrar el "puntero" (tabla tarifa_overrides) — probablemente falta el permiso de DELETE ahí también. La fila puede quedar mostrando datos viejos hasta corregir eso.');
+      }
     }
     return true;
   } catch (err) {
