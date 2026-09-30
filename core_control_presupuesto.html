@@ -779,22 +779,53 @@ async function updateLiveStatusBadge() {
 }
 updateLiveStatusBadge();
 
+// Misma tabla que en Maestro (ver ahí el porqué) — se necesita acá también para poder traducir la
+// "Fecha vencimiento" de una versión Terrestre a su Pack Plan (ver vigenciasFromHistorial).
+const PACK_PLAN_DATE_RANGES = [
+  { pp: 21, from: '2026-05-26' }, { pp: 22, from: '2026-05-28' }, { pp: 23, from: '2026-06-04' },
+  { pp: 24, from: '2026-06-10' }, { pp: 25, from: '2026-06-18' }, { pp: 26, from: '2026-06-25' },
+  { pp: 27, from: '2026-07-02' }, { pp: 28, from: '2026-07-09' }, { pp: 29, from: '2026-07-16' },
+  { pp: 30, from: '2026-07-22' }, { pp: 31, from: '2026-07-30' }, { pp: 32, from: '2026-08-06' },
+  { pp: 33, from: '2026-08-12' }, { pp: 34, from: '2026-08-18' }, { pp: 35, from: '2026-08-25' },
+  { pp: 36, from: '2026-09-03' }, { pp: 37, from: '2026-09-10' }, { pp: 38, from: '2026-09-16' },
+  { pp: 39, from: '2026-09-23' }, { pp: 40, from: '2026-09-30' }, { pp: 41, from: '2026-10-07' },
+  { pp: 42, from: '2026-10-14' }, { pp: 43, from: '2026-10-21' }, { pp: 44, from: '2026-10-28' },
+];
+function packPlanForDate(dateStr) {
+  if (!dateStr) return null;
+  let found = null;
+  for (const r of PACK_PLAN_DATE_RANGES) {
+    if (dateStr >= r.from) found = r.pp; else break;
+  }
+  return found;
+}
+
 // Construye una "vigencias" (misma forma que la incrustada en DATA.routes: [{desde,hasta,tarifa}])
 // a partir del historial guardado en Maestro, usando el Pack Plan que cada versión registró como
 // "vigente desde". Solo con versiones que tengan ese dato (pack_plan_desde) — el historial viejo,
 // guardado antes de que existiera ese campo, no aporta escalón y se ignora acá.
-function vigenciasFromHistorial(historial) {
+// En Marítimo la última versión queda "abierta" (hasta: null) hasta que se registre una nueva —
+// así se pensó desde el inicio (la "Fecha vencimiento" es solo de referencia, no corta sola). En
+// Terrestre NO: la adjudicación es semanal (a veces ni siquiera hay camión esa semana), así que la
+// última versión se acota a su propia "Fecha vencimiento" traducida a Pack Plan — pasado ese punto
+// cae al %/tarifa inicial de la ruta (0% en las rutas Terrestre con rotación) en vez de quedarse
+// "pegada" al último proveedor y cruzarse con el que le toque después.
+function vigenciasFromHistorial(historial, modo) {
   const conPP = (historial || [])
     .filter(h => h.pack_plan_desde !== null && h.pack_plan_desde !== undefined)
     .sort((a, b) => a.pack_plan_desde - b.pack_plan_desde);
   if (!conPP.length) return null;
-  return conPP.map((h, i) => ({
-    desde: h.pack_plan_desde,
-    hasta: i < conPP.length - 1 ? conPP[i + 1].pack_plan_desde - 1 : null,
-    tarifa: h.tarifa_nueva,
-    pct: h.pct_adj_nueva,
-  }));
+  return conPP.map((h, i) => {
+    const esUltima = i === conPP.length - 1;
+    let hasta = esUltima ? null : conPP[i + 1].pack_plan_desde - 1;
+    if (esUltima && modo === 'Terrestre') {
+      const ppVencimiento = packPlanForDate(h.fecha_vencimiento);
+      hasta = ppVencimiento !== null ? ppVencimiento : h.pack_plan_desde;
+    }
+    return { desde: h.pack_plan_desde, hasta, tarifa: h.tarifa_nueva, pct: h.pct_adj_nueva };
+  });
 }
+
 
 async function loadOverridesFromSupabaseAndRender() {
   if (!sb) return;
@@ -809,12 +840,14 @@ async function loadOverridesFromSupabaseAndRender() {
     (historial || []).forEach(h => {
       (histByKey[h.route_key] = histByKey[h.route_key] || []).push({
         tarifa_nueva: Number(h.tarifa_nueva), pct_adj_nueva: Number(h.pct_adj_nueva), pack_plan_desde: h.pack_plan_desde,
+        fecha_vencimiento: h.fecha_vencimiento,
       });
     });
+    const modoByKey = new Map(DATA.routes.map(r => [routeKey(r), r.modo]));
     (data || []).forEach(o => {
       state.overrides.set(o.route_key, {
         tarifa_actual: Number(o.tarifa_actual), pct_adj_nueva: Number(o.pct_adj_nueva),
-        vigencias: vigenciasFromHistorial(histByKey[o.route_key]),
+        vigencias: vigenciasFromHistorial(histByKey[o.route_key], modoByKey.get(o.route_key)),
       });
     });
     try { renderAllReactive(); } catch (err) { console.error('renderAllReactive tras cargar Supabase falló:', err); }
@@ -2503,6 +2536,13 @@ function vigenteHoy(r, ov) {
       best = { tarifa: h.tarifa_nueva, pct: h.pct_adj_nueva, fecha_inicio: h.fecha_inicio, fecha_vencimiento: h.fecha_vencimiento, updated_by: h.updated_by || '' };
     }
   });
+  // Terrestre: la adjudicación es por semana (1 solo camión, a veces ninguno) — a diferencia de
+  // Marítimo, donde una vigencia queda abierta hasta la próxima versión, acá NO debe "arrastrarse"
+  // después de su fecha de vencimiento. Si ya venció, cae a 0% para no cruzarse con la siguiente
+  // adjudicación y disparar falsamente la alerta de "ruta suma > 100%".
+  if (r.modo === 'Terrestre' && best.fecha_vencimiento && best.fecha_vencimiento < hoy) {
+    best = { ...best, pct: 0 };
+  }
   return best;
 }
 
