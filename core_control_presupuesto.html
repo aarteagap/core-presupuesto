@@ -2628,12 +2628,21 @@ function vigenteHoy(r, ov) {
   return best;
 }
 
+// Clave de agrupación para la validación "suma 100%": en Marítimo cada ruta reparte su 100% entre
+// sus propios proveedores, así que se agrupa por ruta. En Terrestre el 100% se reparte entre TODAS
+// las rutas/corredores a la vez (1 solo camión activo en todo el pool esa semana, y puede ganar
+// cualquier corredor) — agrupar por ruta individual hace que el corredor que no gane esa semana
+// se vea "sumando 0%" y dispare una alerta falsa. Por eso Terrestre usa una sola clave global.
+function pctGroupKey(r) {
+  return r.modo === 'Terrestre' ? 'Terrestre|||__GLOBAL__' : (r.modo + '|||' + r.ruta);
+}
+
 function pctTotalsByRuta() {
   const totals = {};
   DATA.routes.forEach(r => {
     const ov = state.overrides.get(routeKey(r));
     const pct = vigenteHoy(r, ov).pct;
-    const k = r.modo + '|||' + r.ruta;
+    const k = pctGroupKey(r);
     totals[k] = (totals[k] || 0) + pct;
   });
   return totals;
@@ -2659,14 +2668,16 @@ function renderMasterTable() {
     const currentPct = vig.pct;
     const vigencia = vig.fecha_inicio ? vig : null;
     const isOpen = state.openKey === key;
-    const rutaTotal = rutaTotals[r.modo + '|||' + r.ruta] || 0;
+    const rutaTotal = rutaTotals[pctGroupKey(r)] || 0;
     const rutaOff = Math.abs(rutaTotal - 1) > 0.005;
+    const rutaOffLabel = r.modo === 'Terrestre' ? 'Sumando el % Adjudicación vigente de TODOS los proveedores y rutas Terrestre (un solo camión activo a la vez, en cualquier corredor)' : 'Sumando el % Adjudicación vigente de todos los proveedores de esta ruta';
+    const rutaOffText = r.modo === 'Terrestre' ? `⚠ Terrestre suma ${fmtPct(rutaTotal)}, no 100%` : `⚠ Ruta suma ${fmtPct(rutaTotal)}, no 100%`;
 
     return `
     <div class="master-row" data-key="${encodeURIComponent(key)}">
       <div class="master-row-head">
         <div>
-          <span class="master-route-name">${r.proveedor} — ${r.ruta}${r.sin_base ? '<span class="m-tag sinbase">Sin tarifa base</span>' : ''}${ov ? '<span class="m-tag">Editado</span>' : ''}${rutaOff ? `<span class="m-tag warn" title="Sumando el % Adjudicación vigente de todos los proveedores de esta ruta">⚠ Ruta suma ${fmtPct(rutaTotal)}, no 100%</span>` : ''}</span>
+          <span class="master-route-name">${r.proveedor} — ${r.ruta}${r.sin_base ? '<span class="m-tag sinbase">Sin tarifa base</span>' : ''}${ov ? '<span class="m-tag">Editado</span>' : ''}${rutaOff ? `<span class="m-tag warn" title="${rutaOffLabel}">${rutaOffText}</span>` : ''}</span>
           <div class="m-sub-row">
             <span class="m-sub">Viajes estimados (fijo): <b>${fmtNum(r.viajes_estimados,2)}</b></span>
             <span class="m-sub">Tarifa inicial (fija): <b>${fmtUSD(r.tarifa_inicial,{decimals:2})}</b></span>
@@ -2813,14 +2824,20 @@ function wireRowEvents() {
       // a propósito mientras se terminan de editar todos los proveedores de esa ruta).
       const thisRoute = DATA.routes.find(x => routeKey(x) === key);
       if (thisRoute) {
-        const sameRuta = DATA.routes.filter(r => r.ruta === thisRoute.ruta);
+        // Terrestre: el 100% se reparte entre TODAS las rutas/corredores del pool, no solo dentro
+        // de esta ruta (ver pctGroupKey) — así que el grupo a validar es todo Terrestre, no solo
+        // los proveedores de "thisRoute.ruta".
+        const sameRuta = thisRoute.modo === 'Terrestre'
+          ? DATA.routes.filter(r => r.modo === 'Terrestre')
+          : DATA.routes.filter(r => r.modo === thisRoute.modo && r.ruta === thisRoute.ruta);
         const rutaTotal = sameRuta.reduce((a, r) => {
           if (routeKey(r) === key) return a + pct;
           const ov2 = state.overrides.get(routeKey(r));
           return a + (ov2 ? ov2.pct_adj_nueva : r.pct_adj_nueva);
         }, 0);
         if (Math.abs(rutaTotal - 1) > 0.005) {
-          const proceed = confirm(`Con este cambio, la ruta "${thisRoute.ruta}" quedaría sumando ${Math.round(rutaTotal * 100)}% de adjudicación entre todos sus proveedores (debería sumar 100%). ¿Guardar de todas formas?`);
+          const grupoLabel = thisRoute.modo === 'Terrestre' ? 'Terrestre (todas las rutas y proveedores)' : `la ruta "${thisRoute.ruta}"`;
+          const proceed = confirm(`Con este cambio, ${grupoLabel} quedaría sumando ${Math.round(rutaTotal * 100)}% de adjudicación (debería sumar 100%). ¿Guardar de todas formas?`);
           if (!proceed) return;
         }
       }
