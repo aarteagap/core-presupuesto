@@ -2751,7 +2751,21 @@ function wireRowEvents() {
       btn.disabled = true; btn.textContent = 'Eliminando…';
       const result = await deleteOverrideVersion(key, routeObj, entryId);
       if (result === true) {
-        await loadOverridesFromSupabase();
+        // Actualiza el estado local directo (en vez de re-consultar Supabase) — justo después de
+        // un DELETE, a veces la siguiente consulta todavía devuelve el dato viejo (no llega a
+        // tiempo la actualización), así que una recarga inmediata podía "revivir" en pantalla la
+        // versión que ya se borró de verdad, hasta que el usuario refrescaba la página a mano.
+        if (ov) {
+          ov.historial = ov.historial.filter(h => h.id !== entryId);
+          if (ov.historial.length) {
+            const last = ov.historial[ov.historial.length - 1];
+            ov.tarifa_actual = last.tarifa_nueva;
+            ov.pct_adj_nueva = last.pct_adj_nueva;
+            ov.updated_by = last.updated_by;
+          } else {
+            state.overrides.delete(key);
+          }
+        }
         renderMasterTable();
         showToast('✓ Versión eliminada');
       } else {
