@@ -50,19 +50,28 @@ alter table public.tarifa_overrides_historial enable row level security;
 drop policy if exists "anon select overrides" on public.tarifa_overrides;
 drop policy if exists "anon upsert overrides" on public.tarifa_overrides;
 drop policy if exists "anon update overrides" on public.tarifa_overrides;
+drop policy if exists "anon delete overrides" on public.tarifa_overrides;
 create policy "anon select overrides" on public.tarifa_overrides
   for select using (true);
 create policy "anon upsert overrides" on public.tarifa_overrides
   for insert with check (true);
 create policy "anon update overrides" on public.tarifa_overrides
   for update using (true);
+create policy "anon delete overrides" on public.tarifa_overrides
+  for delete using (true);
 
 drop policy if exists "anon select historial" on public.tarifa_overrides_historial;
 drop policy if exists "anon insert historial" on public.tarifa_overrides_historial;
+drop policy if exists "anon delete historial" on public.tarifa_overrides_historial;
 create policy "anon select historial" on public.tarifa_overrides_historial
   for select using (true);
 create policy "anon insert historial" on public.tarifa_overrides_historial
   for insert with check (true);
+-- Necesaria para el botón "🗑 Eliminar" de Administrador en Maestro (borra una versión puntual del
+-- historial). Sin esta policy, RLS rechaza el DELETE en silencio — el botón "funciona" en la
+-- pantalla pero no borra nada de verdad en Supabase.
+create policy "anon delete historial" on public.tarifa_overrides_historial
+  for delete using (true);
 
 -- Habilita Realtime para que el Dashboard reciba cambios de tarifa
 -- al instante sin recargar (opcional, ya usamos postMessage como
