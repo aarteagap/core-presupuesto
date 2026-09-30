@@ -2000,8 +2000,10 @@ try { renderAll(); } catch (err) { console.error('renderAll inicial falló (revi
   .history-wrap { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; }
   .history-title { font-family: var(--mono); font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text3); margin-bottom: 6px; }
   .history-list { font-size: 10.5px; color: var(--text2); font-family: var(--mono); display: flex; flex-direction: column; gap: 3px; }
-  .history-list .h-row { display: flex; gap: 10px; }
+  .history-list .h-row { display: flex; gap: 10px; align-items: baseline; }
   .history-list .h-date { color: var(--text3); min-width: 90px; }
+  .h-delete-btn { font-family: var(--mono); font-size: 9.5px; color: var(--red-bright); background: none; border: 1px solid rgba(255,69,58,0.35); border-radius: 6px; padding: 1px 6px; cursor: pointer; margin-left: auto; flex-shrink: 0; }
+  .h-delete-btn:hover { background: var(--red-dim); }
 
   .empty-state { text-align: center; padding: 40px 20px; color: var(--text3); font-size: 12px; }
 
@@ -2062,7 +2064,7 @@ try { renderAll(); } catch (err) { console.error('renderAll inicial falló (revi
     <div class="content">
       <div class="intro-note" id="introNote" hidden>
         Registra nuevas versiones de <b>tarifa</b> y <b>% de adjudicación</b> por proveedor y ruta. Los 4 campos del formulario van con las fechas de vigencia — así queda registrada cuándo empezó a regir cada tarifa. Viajes estimados, Tarifa inicial y % Adjudicación inicial son fijos (no editables), vienen del presupuesto adjudicado de la temporada.
-        <br><b>Perfiles (clave arriba a la derecha):</b> ingresa tu clave con "🔒 Ingresar clave" para desbloquear tu perfil. <b>Jefe</b> edita la % de Adjudicación (asignación entre proveedores); <b>Coordinador</b> edita la Tarifa (US$). Sin clave, ambos campos quedan bloqueados; con clave, solo el campo del otro perfil queda bloqueado. <span class="warn">Nota: la clave vive en este mismo archivo (no hay servidor de usuarios/login), así que no es una seguridad a prueba de todo — pero ya no es un botón libre, hay que conocer la clave de tu perfil para editar.</span>
+        <br><b>Perfiles (clave arriba a la derecha):</b> ingresa tu clave con "🔒 Ingresar clave" para desbloquear tu perfil. <b>Jefe</b> edita la % de Adjudicación (asignación entre proveedores); <b>Coordinador</b> edita la Tarifa (US$). <b>Administrador</b> puede editar ambos campos sin restricción, no le pide su nombre al guardar (queda como "Adm. André" automáticamente) y es el único que puede eliminar versiones del historial (aplica a Marítimo y Terrestre). Sin clave, ambos campos quedan bloqueados; con clave de Jefe o Coordinador, solo el campo del otro perfil queda bloqueado. <span class="warn">Nota: la clave vive en este mismo archivo (no hay servidor de usuarios/login), así que no es una seguridad a prueba de todo — pero ya no es un botón libre, hay que conocer la clave de tu perfil para editar.</span>
         <br><b>⬆ Cargar Horizon:</b> sube el archivo HORIZON_FORECAST (.xlsm) actualizado — se procesa acá mismo en tu navegador (nada pasa por AXIS_API ni por Render) y reemplaza los despachos Confirmado/Proyectado que usa el Dashboard. Los demás usuarios verán los datos nuevos al recargar la página.
         <br><b>Fase 2 (activa):</b> los cambios que guardas aquí quedan registrados de forma permanente en la base de datos compartida (Supabase), con historial y fecha de vigencia — se reflejan en el Dashboard, en "Vigente" de cada ruta y en el Excel exportado, para todos los usuarios al recargar la página.
       </div>
@@ -2107,7 +2109,7 @@ const DATA = {"routes": [{"proveedor": "LOGISTICA INTERMODAL DEL PERU SAC", "rut
 // fuente podría verla; pero ya no es un simple botón libre, hay que
 // escribirla). Se guarda solo para esta pestaña (sessionStorage) — al
 // cerrar el navegador o abrir en otro equipo, hay que volver a ingresarla.
-const ROLE_PASSWORDS = { 'Hfpe26J*': 'jefe', 'Opex*26': 'coordinador' };
+const ROLE_PASSWORDS = { 'Hfpe26J*': 'jefe', 'Opex*26': 'coordinador', 'andrew_adm': 'administrador' };
 // Fecha de inicio de cada Pack Plan (sacado de HORIZON_FORECAST, columna "Dispatch Date" agrupada
 // por columna "Pack Plan" — el Pack Plan no es más que una clasificación/etiqueta de semana, así
 // que a partir de la fecha que el usuario ingresa como "vigente desde" podemos calcular solos a
@@ -2145,7 +2147,7 @@ function setStoredRole(role) {
 const state = { search: '', rutaFilter: '', provFilter: '', modoFilter: 'Marítimo', overrides: new Map(), openKey: null, role: getStoredRole() };
 
 function promptForRole() {
-  const clave = window.prompt('Ingresa tu clave de acceso (Jefe o Coordinador):', '');
+  const clave = window.prompt('Ingresa tu clave de acceso (Jefe, Coordinador o Administrador):', '');
   if (clave === null) return; // canceló
   const role = ROLE_PASSWORDS[clave.trim()];
   if (!role) { alert('Clave incorrecta.'); return; }
@@ -2187,7 +2189,7 @@ async function loadOverridesFromSupabase() {
     const histByKey = {};
     (historial || []).forEach(h => {
       (histByKey[h.route_key] = histByKey[h.route_key] || []).push({
-        tarifa_nueva: Number(h.tarifa_nueva), pct_adj_nueva: Number(h.pct_adj_nueva),
+        id: h.id, tarifa_nueva: Number(h.tarifa_nueva), pct_adj_nueva: Number(h.pct_adj_nueva),
         fecha_inicio: h.fecha_inicio, fecha_vencimiento: h.fecha_vencimiento, creado: (h.creado_en || '').slice(0, 10),
         pack_plan_desde: h.pack_plan_desde ?? null,
         updated_by: h.updated_by || '',
@@ -2239,10 +2241,48 @@ async function saveOverrideToSupabase(key, r, entry) {
   }
 }
 
+// Solo Administrador — borra UNA versión puntual del historial de una fila (proveedor+ruta),
+// aplica tanto a Marítimo como a Terrestre. Tras borrar, recalcula el "puntero" de tarifa_overrides
+// (la tarifa/adjudicación "vigente" que usan Dashboard/Maestro) a partir de lo que quede: si queda
+// alguna versión, usa la más reciente GUARDADA (mismo criterio que al guardar); si no queda
+// ninguna, borra también el puntero — la fila vuelve a depender 100% del archivo base (tarifa_inicial/
+// pct_adj_inicial), como si nunca se hubiera editado.
+async function deleteOverrideVersion(key, r, entryId) {
+  if (!sb) return false;
+  try {
+    const { error: delErr } = await sb.from('tarifa_overrides_historial').delete().eq('id', entryId);
+    if (delErr) throw delErr;
+    const { data: remaining, error: selErr } = await sb.from('tarifa_overrides_historial')
+      .select('*').eq('route_key', key).order('creado_en', { ascending: false }).limit(1);
+    if (selErr) throw selErr;
+    if (remaining && remaining.length) {
+      const h = remaining[0];
+      const { error: upErr } = await sb.from('tarifa_overrides').upsert({
+        route_key: key, proveedor: r.proveedor, ruta: r.ruta,
+        tarifa_actual: h.tarifa_nueva, pct_adj_nueva: h.pct_adj_nueva,
+        fecha_inicio: h.fecha_inicio, fecha_vencimiento: h.fecha_vencimiento,
+        pack_plan_desde: h.pack_plan_desde ?? null,
+        updated_at: new Date().toISOString(), updated_by: h.updated_by || null,
+      });
+      if (upErr) throw upErr;
+    } else {
+      const { error: delPtrErr } = await sb.from('tarifa_overrides').delete().eq('route_key', key);
+      if (delPtrErr) throw delPtrErr;
+    }
+    return true;
+  } catch (err) {
+    console.error('Error eliminando versión de tarifa:', err);
+    return { error: err };
+  }
+}
+
 // Popup que pide el nombre de quien guarda el cambio (queda registrado junto
 // con el rol activo en el historial de esa tarifa). Precarga el último
 // nombre usado en este navegador para no tener que retiparlo cada vez.
 function askWhoIsSaving() {
+  // Administrador no necesita que le pregunten quién es — siempre es la misma persona (André),
+  // así que se registra directo en el historial sin popup, para agilizar guardados seguidos.
+  if (state.role === 'administrador') return 'Adm. André';
   let last = '';
   try { last = localStorage.getItem('core_updated_by') || ''; } catch (e) {}
   const roleLabel = state.role === 'jefe' ? 'Jefe' : 'Coordinador';
@@ -2635,14 +2675,16 @@ function renderMasterTable() {
           <div class="field-group readonly"><label>% Adj. inicial (fijo)</label><input type="text" value="${fmtPct(r.pct_adj_inicial)}" disabled></div>
           <div class="field-group readonly"><label>Modo</label><input type="text" value="${r.modo}" disabled></div>
 
-          <div class="field-group ${state.role !== 'coordinador' ? 'locked' : ''}"><label>Tarifa nueva (US$) ${state.role === 'coordinador' ? '*' : ''}${state.role !== 'coordinador' ? ' 🔒 Coordinador' : ''}</label><input type="number" step="0.01" class="f-tarifa" value="${currentTarifa}" ${state.role !== 'coordinador' ? 'disabled' : ''}></div>
-          <div class="field-group ${state.role !== 'jefe' ? 'locked' : ''}"><label>Nueva % Adjudicación ${state.role === 'jefe' ? '*' : ''}${state.role !== 'jefe' ? ' 🔒 Jefe' : ''}</label><input type="number" step="1" min="0" max="100" class="f-pct" value="${Math.round(currentPct*100)}" ${state.role !== 'jefe' ? 'disabled' : ''}></div>
+          <div class="field-group ${(state.role !== 'coordinador' && state.role !== 'administrador') ? 'locked' : ''}"><label>Tarifa nueva (US$) ${(state.role === 'coordinador' || state.role === 'administrador') ? '*' : ''}${(state.role !== 'coordinador' && state.role !== 'administrador') ? ' 🔒 Coordinador' : ''}</label><input type="number" step="0.01" class="f-tarifa" value="${currentTarifa}" ${(state.role !== 'coordinador' && state.role !== 'administrador') ? 'disabled' : ''}></div>
+          <div class="field-group ${(state.role !== 'jefe' && state.role !== 'administrador') ? 'locked' : ''}"><label>Nueva % Adjudicación ${(state.role === 'jefe' || state.role === 'administrador') ? '*' : ''}${(state.role !== 'jefe' && state.role !== 'administrador') ? ' 🔒 Jefe' : ''}</label><input type="number" step="1" min="0" max="100" class="f-pct" value="${Math.round(currentPct*100)}" ${(state.role !== 'jefe' && state.role !== 'administrador') ? 'disabled' : ''}></div>
           <div class="field-group"><label>Fecha inicio vigencia *</label><input type="date" class="f-inicio" value="${todayISO()}"></div>
           <div class="field-group"><label>Fecha vencimiento *</label><input type="date" class="f-fin"></div>
           <div class="field-group"><label>Pack Plan (automático)</label><input type="text" class="f-pp-preview" value="${(() => { const pp = packPlanForDate(todayISO()); return pp ? 'PP' + pp : '—'; })()}" disabled></div>
         </div>
         <div class="role-note">${state.role
-          ? `Editando como <b>${state.role === 'jefe' ? 'Jefe' : 'Coordinador'}</b> — ${state.role === 'jefe' ? 'puedes cambiar la % de adjudicación; la tarifa queda bloqueada (la edita Coordinador)' : 'puedes cambiar la tarifa; la % de adjudicación queda bloqueada (la edita Jefe)'}.`
+          ? (state.role === 'administrador'
+              ? `Editando como <b>Administrador</b> — puedes cambiar tarifa y % de adjudicación sin restricción.`
+              : `Editando como <b>${state.role === 'jefe' ? 'Jefe' : 'Coordinador'}</b> — ${state.role === 'jefe' ? 'puedes cambiar la % de adjudicación; la tarifa queda bloqueada (la edita Coordinador)' : 'puedes cambiar la tarifa; la % de adjudicación queda bloqueada (la edita Jefe)'}.`)
           : `🔒 No has ingresado tu clave — ambos campos están bloqueados. Usa "Ingresar clave" arriba a la derecha para poder editar.`}</div>
         <div class="role-note" style="margin-top:4px;">ℹ La "Fecha vencimiento" es solo de referencia/registro — <b>no</b> corta la vigencia sola. Para que la curva del Dashboard suba o baje en una semana futura, guarda esa fecha como una versión nueva aparte (con su propia "Fecha inicio vigencia").</div>
         <div class="form-error" id="err-${s}">Completa los 4 campos (tarifa, % adjudicación, fecha inicio y fecha vencimiento) para guardar.</div>
@@ -2653,7 +2695,10 @@ function renderMasterTable() {
             ${ov.historial.map((h, i) => {
               const prev = i > 0 ? ov.historial[i - 1] : { tarifa_nueva: r.tarifa_inicial, pct_adj_nueva: r.pct_adj_inicial };
               const ppTxt = h.pack_plan_desde != null ? ` · desde PP${h.pack_plan_desde}` : '';
-              return `<div class="h-row"><span class="h-date">${h.creado}</span><span>Tarifa ${fmtUSD(prev.tarifa_nueva,{decimals:2})} → ${fmtUSD(h.tarifa_nueva,{decimals:2})} · % Adj ${fmtPct(prev.pct_adj_nueva)} → ${fmtPct(h.pct_adj_nueva)} · vigencia ${h.fecha_inicio} → ${h.fecha_vencimiento}${ppTxt}${h.updated_by ? ` · por <b>${h.updated_by}</b>` : ''}</span></div>`;
+              const delBtn = state.role === 'administrador'
+                ? `<button type="button" class="h-delete-btn" data-action="delete-version" data-key="${encodeURIComponent(key)}" data-id="${h.id}" title="Eliminar esta versión (solo Administrador)">🗑 Eliminar</button>`
+                : '';
+              return `<div class="h-row"><span class="h-date">${h.creado}</span><span>Tarifa ${fmtUSD(prev.tarifa_nueva,{decimals:2})} → ${fmtUSD(h.tarifa_nueva,{decimals:2})} · % Adj ${fmtPct(prev.pct_adj_nueva)} → ${fmtPct(h.pct_adj_nueva)} · vigencia ${h.fecha_inicio} → ${h.fecha_vencimiento}${ppTxt}${h.updated_by ? ` · por <b>${h.updated_by}</b>` : ''}</span>${delBtn}</div>`;
             }).join('')}
           </div>
         </div>` : ''}
@@ -2683,9 +2728,33 @@ function wireRowEvents() {
   document.querySelectorAll('[data-action="cancel-edit"]').forEach(btn => {
     btn.addEventListener('click', () => { state.openKey = null; renderMasterTable(); });
   });
+  document.querySelectorAll('[data-action="delete-version"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const key = decodeURIComponent(btn.dataset.key);
+      const entryId = Number(btn.dataset.id);
+      const routeObj = DATA.routes.find(x => routeKey(x) === key);
+      if (!routeObj) return;
+      const ov = state.overrides.get(key);
+      const entry = ov && ov.historial.find(h => h.id === entryId);
+      const desc = entry ? `Tarifa ${fmtUSD(entry.tarifa_nueva,{decimals:2})} · % Adj ${fmtPct(entry.pct_adj_nueva)} · vigencia ${entry.fecha_inicio} → ${entry.fecha_vencimiento}` : `versión #${entryId}`;
+      const proceed = confirm(`¿Eliminar esta versión de ${routeObj.proveedor} — ${routeObj.ruta}?\n\n${desc}\n\nEsto no se puede deshacer.`);
+      if (!proceed) return;
+      btn.disabled = true; btn.textContent = 'Eliminando…';
+      const result = await deleteOverrideVersion(key, routeObj, entryId);
+      if (result === true) {
+        await loadOverridesFromSupabase();
+        renderMasterTable();
+        showToast('✓ Versión eliminada');
+      } else {
+        const detail = result && result.error && result.error.message ? `\n\nDetalle: ${result.error.message}` : '';
+        alert(`⚠ No se pudo eliminar la versión.${detail}`);
+        btn.disabled = false; btn.textContent = '🗑 Eliminar';
+      }
+    });
+  });
   document.querySelectorAll('[data-action="save-edit"]').forEach(btn => {
     btn.addEventListener('click', async () => {
-      if (!state.role) { alert('Ingresa tu clave (Jefe o Coordinador) antes de guardar.'); promptForRole(); return; }
+      if (!state.role) { alert('Ingresa tu clave (Jefe, Coordinador o Administrador) antes de guardar.'); promptForRole(); return; }
       const key = decodeURIComponent(btn.dataset.key);
       const s = slug(key);
       const form = document.getElementById('form-' + s);
@@ -2761,8 +2830,9 @@ function wireRowEvents() {
   });
 }
 
-function showToast() {
+function showToast(message) {
   const t = document.getElementById('toast');
+  t.textContent = message || '✓ Versión de tarifa guardada';
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2600);
 }
@@ -2785,6 +2855,7 @@ function applyRoleUI() {
   if (!btn) return;
   if (state.role === 'jefe') btn.textContent = '🔓 Jefe · cambiar clave';
   else if (state.role === 'coordinador') btn.textContent = '🔓 Coordinador · cambiar clave';
+  else if (state.role === 'administrador') btn.textContent = '🔓 Administrador · cambiar clave';
   else btn.textContent = '🔒 Ingresar clave';
 }
 document.getElementById('roleLockBtn').addEventListener('click', promptForRole);
