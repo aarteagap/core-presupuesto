@@ -604,7 +604,7 @@
       <button type="button" class="legend-toggle" data-ds="1"><span class="legend-dot" style="background:var(--yellow)"></span>Target Inicial (fijo)</button>
       <button type="button" class="legend-toggle" data-ds="2"><span class="legend-dot" style="background:var(--horizon-cyan)"></span>Target Actual (tarifa + % adjudicación nueva)</button>
       <button type="button" class="legend-toggle" data-ds="3"><span class="legend-dot" style="background:#8e5ec2"></span>Target FSC (recargo fijo por packing)</button>
-      <button type="button" class="legend-toggle" data-ds="4,5"><span class="legend-dot" style="background:var(--horizon-coral)"></span>Target Ejecutado (acumulado real, punteado = proyectado)</button>
+      <button type="button" class="legend-toggle" data-ds="4,5"><span class="legend-dot" style="background:var(--horizon-coral)"></span>Target Ejecutado (Acumulativo) — punteado = proyectado</button>
       <button type="button" class="legend-toggle" data-ds="6"><span class="legend-dot" style="background:var(--text3)"></span>Σ Valorización semanal (US$)</button>
     </div>
   </div>
@@ -1418,9 +1418,9 @@ function renderWeeklyTrend() {
         { type: 'line', label: 'Target Inicial', data: flatInicial, yAxisID: 'y', borderColor: chartPalette.initial, borderWidth: 2, borderDash: [], pointRadius: 0, tension: 0, order: 1, datalabels: { display: false } },
         { type: 'line', label: 'Target Actual', data: flatActual, yAxisID: 'y', borderColor: chartPalette.actual, borderWidth: 2, pointRadius: 0, stepped: true, order: 1, datalabels: { display: false } },
         { type: 'line', label: 'Target FSC', data: flatFsc, yAxisID: 'y', borderColor: chartPalette.fsc, borderWidth: 2, borderDash: [2, 3], pointRadius: 0, tension: 0, order: 1, datalabels: { display: false } },
-        { type: 'line', label: 'Target Ejecutado (confirmado)', data: exec.solid, yAxisID: 'y', borderColor: chartPalette.executed, backgroundColor: chartPalette.executedFill, borderWidth: 2.7, pointRadius: 3.5, pointHoverRadius: 5.5, pointBackgroundColor: chartPalette.executed, pointBorderColor: isDark ? '#08090b' : '#fff', pointBorderWidth: 2, tension: 0.3, spanGaps: true, order: 0,
+        { type: 'line', label: 'Target Ejecutado (Acumulativo, confirmado)', data: exec.solid, yAxisID: 'y', borderColor: chartPalette.executed, backgroundColor: chartPalette.executedFill, borderWidth: 2.7, pointRadius: 3.5, pointHoverRadius: 5.5, pointBackgroundColor: chartPalette.executed, pointBorderColor: isDark ? '#08090b' : '#fff', pointBorderWidth: 2, tension: 0.3, spanGaps: true, order: 0,
           datalabels: { display: (c) => c.dataset.data[c.dataIndex] !== null, align: 'top', offset: 7, color: execPointColor, backgroundColor: chartPalette.labelBg, borderColor: chartPalette.grid, borderWidth: 1, borderRadius: 5, padding: { top: 3, bottom: 3, left: 5, right: 5 }, font: { family: 'Inter', size: 9, weight: '700' }, formatter: (v, c) => execPointLabel(c) } },
-        { type: 'line', label: 'Target Ejecutado (proyectado)', data: exec.dashed, yAxisID: 'y', borderColor: chartPalette.executed, borderDash: [6, 5], borderWidth: 2, pointRadius: 3.5, pointHoverRadius: 5.5, pointStyle: 'circle', pointBackgroundColor: chartPalette.executedFill, pointBorderColor: chartPalette.executed, pointBorderWidth: 2, tension: 0.3, spanGaps: true, order: 0,
+        { type: 'line', label: 'Target Ejecutado (Acumulativo, proyectado)', data: exec.dashed, yAxisID: 'y', borderColor: chartPalette.executed, borderDash: [6, 5], borderWidth: 2, pointRadius: 3.5, pointHoverRadius: 5.5, pointStyle: 'circle', pointBackgroundColor: chartPalette.executedFill, pointBorderColor: chartPalette.executed, pointBorderWidth: 2, tension: 0.3, spanGaps: true, order: 0,
           datalabels: { display: (c) => c.dataset.data[c.dataIndex] !== null, align: 'top', offset: 7, color: execPointColor, backgroundColor: chartPalette.labelBg, borderColor: chartPalette.grid, borderWidth: 1, borderRadius: 5, padding: { top: 3, bottom: 3, left: 5, right: 5 }, font: { family: 'Inter', size: 9, weight: '700' }, formatter: (v, c) => execPointLabel(c) } },
         // Σ Valorización semanal: FCL de la semana x tarifa vigente esa semana. Escala muy distinta
         // (US$ totales, no US$/viaje) — eje propio oculto (y2) para no chocar con el resto.
@@ -1494,8 +1494,8 @@ function renderCustomTooltip(context, tooltipEl, exec, targetInicial, targetFsc,
     { color: chartPalette.initial, name: 'Target Inicial', val: targetInicial !== null ? fmtUSD(targetInicial) : '—' },
     { color: chartPalette.actual, name: 'Target Actual', val: (targetActual !== null && targetActual !== undefined) ? fmtUSD(targetActual, { decimals: 2 }) : '—' },
     { color: chartPalette.fsc, name: 'Target FSC', val: targetFsc !== null ? fmtUSD(targetFsc, { decimals: 2 }) : '—' },
-    { color: chartPalette.executed, name: `Target Ejecutado${isProjected ? ' (proy.)' : ''}`, val: exec.weeklyAvg[idx] !== null ? fmtUSD(exec.weeklyAvg[idx]) : '—' },
-    { color: chartPalette.muted, name: 'Σ Valorización semanal', val: weeklyUsd !== null ? `${fmtUSD(weeklyUsd, { decimals: 0 })} (${fmtNum(fcl, 1)} FCL)` : '—' },
+    { color: chartPalette.executed, name: `Target Ejecutado (Acumulativo)${isProjected ? ' (proy.)' : ''}`, val: fmtUSD(exec.solid[idx] !== null ? exec.solid[idx] : exec.dashed[idx], { decimals: 2 }) },
+    { color: chartPalette.muted, name: 'Σ Valorización semanal (prom. no acum.)', val: weeklyUsd !== null ? `${fmtUSD(weeklyUsd, { decimals: 0 })} (${fmtNum(fcl, 1)} FCL · ${weekVal !== null ? fmtUSD(weekVal, { decimals: 2 }) : '—'}/viaje)` : '—' },
   ];
 
   const devClass = desv < 0 ? 'red' : (desv > 0 ? 'green' : '');
