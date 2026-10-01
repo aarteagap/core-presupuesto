@@ -3531,8 +3531,14 @@ window.parent.postMessage({ type: 'ready', view: 'adjudicacion' }, '*');
   .tag-real { background: rgba(10,132,255,.14); color: var(--blue-bright); }
   .tag-est { background: rgba(255,159,10,.16); color: var(--yellow-bright); }
   .tag-proy { background: rgba(142,142,147,.16); color: var(--text2); }
+  .tag-mixto { background: rgba(142,142,147,.16); color: var(--text2); }
   .table-scroll { overflow-x: auto; }
-  .pp-group td { background: var(--bg3); font-size: 11px; font-weight: 800; color: var(--text2); text-transform: uppercase; letter-spacing: .03em; padding: 6px 10px; }
+  .pp-group { cursor: pointer; }
+  .pp-group td { background: var(--bg3); font-weight: 700; }
+  .pp-group:hover td { background: var(--bg4); }
+  .pp-arrow { font-size: 12px; }
+  .pp-detail td { background: var(--bg); }
+  .pp-detail td:first-child { padding-left: 24px; color: var(--text2); }
 
   .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; align-items: center; justify-content: center; z-index: 500; padding: 20px; }
   .modal-overlay.open { display: flex; }
@@ -3728,22 +3734,12 @@ document.getElementById('kpiStrip').innerHTML = [
   kpiCard('Espacio libre acumulado', fmtNum(totalKgLibres, 0) + ' kg', '', `vs. ${fmtNum(REF_KG, 0)} kg (promedio histórico por contenedor)`),
 ].join('');
 
-// ---- Tabla (agrupada por Pack Plan) ----
+// ---- Tabla (1 fila resumen por Pack Plan, desglosable a los RH) ----
 const FUENTE_TAG = { real: ['tag-real', 'Real'], estimado: ['tag-est', 'Estimado'], 'Proyectado SOP': ['tag-proy', 'Proyectado SOP'] };
 function kgPct(kg, total) { return `${Math.round(kg)}(%${Math.round(kg / total * 100)})`; }
-const tbody = document.querySelector('#casesTable tbody');
-let html = '';
-let lastPP = null;
-for (const c of TABLE_ROWS) {
-  if (c.pack_plan !== lastPP) {
-    html += `<tr class="pp-group"><td colspan="12">Pack Plan ${c.pack_plan}</td></tr>`;
-    lastPP = c.pack_plan;
-  }
+function rowCells(c, kgLib, difTotal) {
   const [tagCls, tagLabel] = FUENTE_TAG[c.fuente];
-  const kgLib = kgLibres(c);
-  const difTotal = diferenciaTotal(c);
-  html += `
-  <tr>
+  return `
     <td style="font-family:var(--mono);font-weight:700">${c.rh || '—'}</td>
     <td><span class="tag ${tagCls}">${tagLabel}</span></td>
     <td>${kgPct(c.hortifrut_kg, c.total_kg)}</td>
@@ -3756,10 +3752,52 @@ for (const c of TABLE_ROWS) {
     <td style="color:${difTotal > 0 ? 'var(--red)' : 'var(--green)'};font-weight:700">${difTotal > 0 ? '+' : ''}${fmtUSD(difTotal)}</td>
     <td>${fmtUSD(c.usd_kg_solo, { decimals: 4 })}</td>
     <td style="color:${kgLib < 0 ? 'var(--red)' : 'var(--text2)'}">${kgLib > 0 ? '+' : ''}${fmtNum(kgLib, 0)}</td>
-  </tr>
-`;
+  `;
+}
+
+const groupsByPP = new Map();
+for (const c of TABLE_ROWS) {
+  if (!groupsByPP.has(c.pack_plan)) groupsByPP.set(c.pack_plan, []);
+  groupsByPP.get(c.pack_plan).push(c);
+}
+
+const tbody = document.querySelector('#casesTable tbody');
+let html = '';
+for (const [pp, rows] of groupsByPP) {
+  const sumHortifrut = rows.reduce((a, c) => a + c.hortifrut_kg, 0);
+  const sumHfe = rows.reduce((a, c) => a + c.hfe_kg, 0);
+  const sumTotal = sumHortifrut + sumHfe;
+  const sumPagoTotal = rows.reduce((a, c) => a + c.pago_total, 0);
+  const sumCostoSolo = rows.reduce((a, c) => a + c.costo_solo, 0);
+  const sumPagadoHortifrut = rows.reduce((a, c) => a + c.pagado_hortifrut, 0);
+  const sumPagadoHfe = rows.reduce((a, c) => a + c.pagado_hfe, 0);
+  const summary = {
+    rh: rows.length > 1 ? `${rows.length} contenedores` : (rows[0].rh || '—'),
+    fuente: new Set(rows.map(c => c.fuente)).size > 1 ? 'mixto' : rows[0].fuente,
+    hortifrut_kg: sumHortifrut, hfe_kg: sumHfe, total_kg: sumTotal,
+    pago_total: sumPagoTotal, costo_solo: sumCostoSolo,
+    usd_kg_hfe: sumPagadoHfe / sumHfe, usd_kg_hortifrut: sumPagadoHortifrut / sumHortifrut,
+    usd_kg_solo: sumCostoSolo / sumTotal,
+  };
+  if (summary.fuente === 'mixto') FUENTE_TAG.mixto = ['tag-mixto', 'Mixto'];
+  const summaryKgLib = rows.reduce((a, c) => a + kgLibres(c), 0);
+  const summaryDifTotal = (summary.usd_kg_hortifrut - summary.usd_kg_solo) * summary.hortifrut_kg;
+  html += `<tr class="pp-group" data-pp="${pp}"><td class="pp-arrow">▸ Pack Plan ${pp}</td>${rowCells(summary, summaryKgLib, summaryDifTotal).replace(/^\s*<td[^>]*>[^<]*<\/td>/, '')}</tr>`;
+  for (const c of rows) {
+    const kgLib = kgLibres(c);
+    const difTotal = diferenciaTotal(c);
+    html += `<tr class="pp-detail" data-pp-detail="${pp}" style="display:none">${rowCells(c, kgLib, difTotal)}</tr>`;
+  }
 }
 tbody.innerHTML = html;
+tbody.querySelectorAll('tr.pp-group').forEach(tr => {
+  tr.addEventListener('click', () => {
+    const pp = tr.getAttribute('data-pp');
+    const open = tr.classList.toggle('open');
+    tr.querySelector('.pp-arrow').textContent = (open ? '▾' : '▸') + ' Pack Plan ' + pp;
+    tbody.querySelectorAll(`tr.pp-detail[data-pp-detail="${pp}"]`).forEach(d => { d.style.display = open ? '' : 'none'; });
+  });
+});
 
 // ---- Modal de errores ----
 document.getElementById('errList').innerHTML = ERRORES.map(e => `
