@@ -2577,7 +2577,14 @@ function fmtUSD(n, opts = {}) {
   return '$' + v.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 function fmtNum(n, decimals = 0) { return (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }); }
-function fmtPct(n) { return ((Number(n) || 0) * 100).toFixed(0) + '%'; }
+// Hasta 2 decimales (ej. 50.91%), sin ceros de más (100% en vez de 100.00%) — antes redondeaba a
+// entero y tapaba que dos % "iguales a la vista" (51% vs 50.91%) en realidad eran distintos,
+// causando confusión al revisar por qué una ruta no sumaba 100% exacto.
+function fmtPct(n) {
+  const v = (Number(n) || 0) * 100;
+  const s = v.toFixed(2).replace(/\.?0+$/, '');
+  return s + '%';
+}
 function todayISO() { return new Date().toISOString().slice(0, 10); }
 function slug(key) { return key.replace(/[^a-zA-Z0-9]/g, '_'); }
 
