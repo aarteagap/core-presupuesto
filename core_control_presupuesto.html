@@ -2219,13 +2219,18 @@ async function loadOverridesFromSupabase() {
 async function saveOverrideToSupabase(key, r, entry) {
   if (!sb) return false;
   try {
-    const { error: errHist } = await sb.from('tarifa_overrides_historial').insert({
+    // .select('id') para recuperar el id real (bigint identity) que Supabase le asigna a la fila —
+    // sin esto, la versión recién guardada quedaba con id undefined en el estado local hasta que se
+    // recargaba la página (loadOverridesFromSupabase sí trae el id), y el botón "Eliminar" de
+    // Administrador fallaba con "invalid input syntax for type bigint: NaN" si se intentaba borrar
+    // esa misma versión sin haber recargado antes.
+    const { data: histData, error: errHist } = await sb.from('tarifa_overrides_historial').insert({
       route_key: key, proveedor: r.proveedor, ruta: r.ruta,
       tarifa_nueva: entry.tarifa_nueva, pct_adj_nueva: entry.pct_adj_nueva,
       fecha_inicio: entry.fecha_inicio, fecha_vencimiento: entry.fecha_vencimiento,
       pack_plan_desde: entry.pack_plan_desde ?? null,
       updated_by: entry.updated_by || null,
-    });
+    }).select('id').single();
     if (errHist) throw errHist;
     const { error } = await sb.from('tarifa_overrides').upsert({
       route_key: key, proveedor: r.proveedor, ruta: r.ruta,
@@ -2236,7 +2241,7 @@ async function saveOverrideToSupabase(key, r, entry) {
     });
     if (error) throw error;
     setSyncStatus('✓ Guardado en Supabase');
-    return true;
+    return { id: histData && histData.id };
   } catch (err) {
     console.error('Error guardando tarifa en Supabase:', err);
     setSyncStatus('⚠ No se pudo guardar en Supabase (quedó solo local) — revisa la consola');
@@ -2856,7 +2861,9 @@ function wireRowEvents() {
       // Solo confirmamos "guardado" si Supabase realmente lo aceptó — antes se mostraba el toast
       // de inmediato sin esperar esto, y si Supabase rechazaba el cambio (ej. columna nueva sin
       // crear en la base) el usuario veía "guardado" igual y el cambio se perdía al recargar.
-      if (saved === true) {
+      if (saved && !saved.error) {
+        entry.id = saved.id; // sin esto, "Eliminar" fallaba (NaN) en una versión recién guardada sin recargar la página
+        renderMasterTable();
         showToast();
       } else {
         const detail = saved && saved.error && saved.error.message ? `\n\nDetalle: ${saved.error.message}` : '';
