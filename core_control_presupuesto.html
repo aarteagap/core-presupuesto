@@ -71,6 +71,7 @@
   <iframe id="frame-dashboard" class="view-frame active"></iframe>
   <iframe id="frame-maestro" class="view-frame"></iframe>
   <iframe id="frame-adjudicacion" class="view-frame"></iframe>
+  <iframe id="frame-consolidados" class="view-frame"></iframe>
 </div>
 
 <script type="text/html" id="tpl-dashboard"><!DOCTYPE html>
@@ -567,6 +568,7 @@
     <span class="badge" id="liveStatusBadge" title="Estado de la conexión con la base de datos">● Conectando…</span>
     <a class="header-btn" href="adjudicacion_servicios.html">Adjudicación</a>
     <a class="header-btn" href="maestro_tarifas.html">Maestro de tarifas</a>
+    <a class="header-btn" href="consolidados_hfe_berries.html" title="Vista aparte: costo de compartir contenedores Marítimo con HFE Berries">Consolidados HFE Berries</a>
     <div class="theme-switch">
       <button class="ios-toggle" id="themeToggle" aria-label="Cambiar tema" title="Cambiar tema"><span class="knob"></span></button>
     </div>
@@ -728,6 +730,9 @@ document.addEventListener('click', (e) => {
     e.preventDefault();
     const key = href.includes('?key=') ? decodeURIComponent(href.split('?key=')[1]) : null;
     window.parent.postMessage({ type: 'navigate', view: 'maestro', key }, '*');
+  } else if (href.startsWith('consolidados_hfe_berries.html')) {
+    e.preventDefault();
+    window.parent.postMessage({ type: 'navigate', view: 'consolidados' }, '*');
   }
 });
 window.parent.postMessage({ type: 'ready', view: 'dashboard' }, '*');
@@ -3462,6 +3467,317 @@ window.parent.postMessage({ type: 'ready', view: 'adjudicacion' }, '*');
 </body>
 </html>
 </script>
+<script type="text/html" id="tpl-consolidados"><!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Consolidados HFE Berries — Hortifrut</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"><%SCRIPT_END%>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+  html[data-theme="light"] {
+    --bg: #F2F2F7; --bg2: #FFFFFF; --bg3: #F2F2F7; --bg4: #E5E5EA;
+    --border: rgba(60,60,67,0.16); --border2: rgba(60,60,67,0.26);
+    --text: #1C1C1E; --text2: rgba(60,60,67,0.68); --text3: rgba(60,60,67,0.38);
+    --green: #34C759; --red: #FF3B30; --blue: #007AFF; --blue-bright: #0060DF;
+    --yellow: #FF9500; --yellow-bright: #C2660A;
+  }
+  html[data-theme="dark"] {
+    --bg: #000000; --bg2: #1C1C1E; --bg3: #2C2C2E; --bg4: #3A3A3C;
+    --border: rgba(255,255,255,0.09); --border2: rgba(255,255,255,0.16);
+    --text: #F2F2F7; --text2: rgba(235,235,245,0.68); --text3: rgba(235,235,245,0.38);
+    --green: #30D158; --red: #FF453A; --blue: #0A84FF; --blue-bright: #409CFF;
+    --yellow: #FF9F0A; --yellow-bright: #FFB340;
+  }
+  :root { --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; --mono: ui-monospace, 'SF Mono', 'Menlo', 'Consolas', monospace; }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 13px; line-height: 1.5; min-height: 100vh; -webkit-font-smoothing: antialiased; }
+
+  .header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; flex-wrap: wrap; gap: 10px; }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .logo { width: 8px; height: 8px; border-radius: 50%; background: var(--yellow-bright); box-shadow: 0 0 8px var(--yellow-bright); }
+  .header-title { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--text2); letter-spacing: 0.02em; }
+  .header-title span { color: var(--text); }
+  .header-sub { font-size: 11px; color: var(--text3); margin-top: 1px; }
+  .header-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .header-btn { font-family: var(--sans); font-size: 11.5px; font-weight: 600; padding: 7px 13px; border-radius: 9px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text2); cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; transition: all .15s; }
+  .header-btn:hover { background: var(--bg4); color: var(--text); }
+
+  .alert-btn { position: relative; font-size: 11.5px; font-weight: 700; padding: 7px 13px 7px 11px; border-radius: 9px; border: 1px solid rgba(255,69,58,.35); background: rgba(255,69,58,.12); color: var(--red); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  .alert-btn .count { background: var(--red); color: #fff; border-radius: 999px; min-width: 16px; height: 16px; font-size: 10px; display: inline-flex; align-items: center; justify-content: center; padding: 0 4px; }
+
+  .main { max-width: 1180px; margin: 0 auto; padding: 20px; display: flex; flex-direction: column; gap: 18px; }
+  .intro { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; font-size: 12.5px; color: var(--text2); }
+  .intro b { color: var(--text); }
+
+  .kpi-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+  .kpi-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; }
+  .kpi-label { font-size: 10.5px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 6px; }
+  .kpi-value { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+  .kpi-sub { font-size: 11px; color: var(--text3); margin-top: 3px; }
+  .pos { color: var(--red); } .neg { color: var(--green); }
+
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 18px; }
+  .card-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+  .card-sub { font-size: 11.5px; color: var(--text3); margin-bottom: 14px; }
+  .chart-wrap { position: relative; height: 320px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: left; font-size: 10.5px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: .02em; padding: 8px 10px; border-bottom: 1px solid var(--border2); position: sticky; top: 0; background: var(--bg2); }
+  td { padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  .tag { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 6px; display: inline-block; }
+  .tag-real { background: rgba(10,132,255,.14); color: var(--blue-bright); }
+  .tag-est { background: rgba(255,159,10,.16); color: var(--yellow-bright); }
+  .tag-proy { background: rgba(142,142,147,.16); color: var(--text2); }
+  .table-scroll { overflow-x: auto; }
+
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; align-items: center; justify-content: center; z-index: 500; padding: 20px; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--bg2); border: 1px solid var(--border2); border-radius: 16px; max-width: 560px; width: 100%; max-height: 80vh; overflow-y: auto; padding: 22px; }
+  .modal h3 { font-size: 15px; margin-bottom: 4px; }
+  .modal .modal-sub { font-size: 11.5px; color: var(--text3); margin-bottom: 16px; }
+  .err-row { padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .err-row:last-child { border-bottom: none; }
+  .err-rh { font-weight: 700; font-family: var(--mono); font-size: 12.5px; }
+  .err-pp { color: var(--text3); font-size: 11px; margin-left: 6px; }
+  .err-motivo { font-size: 11.5px; color: var(--text2); margin-top: 3px; }
+  .modal-close { margin-top: 16px; width: 100%; padding: 10px; border-radius: 10px; border: none; background: var(--blue); color: #fff; font-weight: 700; font-size: 12.5px; cursor: pointer; }
+</style>
+</head>
+<body data-theme="dark">
+
+<div class="header">
+  <div class="header-left">
+    <div class="logo"></div>
+    <div>
+      <div class="header-title">CORE · <span>Consolidados Hortifrut / HFE Berries</span></div>
+      <div class="header-sub">Marítimo · Chao vs Olmos en el mismo contenedor · Proveedor LIP</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <button type="button" class="alert-btn" id="alertBtn">⚠ Casos con error de dato <span class="count" id="errCount">0</span></button>
+    <a class="header-btn" href="presupuesto_transporte_dashboard_v2.html">← Volver al Dashboard</a>
+  </div>
+</div>
+
+<div class="main">
+  <div class="intro">
+    Cada caso "RH" es un mismo contenedor Marítimo (proveedor LIP) compartido entre <b>Hortifrut Perú</b> (Packing Chao) y
+    <b>HFE Berries</b> (Packing Olmos) para que HFE Berries pueda completar su fruta, ya que no llena un contenedor solo
+    rápido. Esta vista compara lo que Hortifrut realmente pagó por su parte del contenedor compartido vs. lo que le habría
+    costado sacar un contenedor propio (ruta Chao, mismo proveedor, sin pasar por Olmos). Diferencia positiva = Hortifrut
+    pagó de más por ayudar a HFE Berries; negativa = pagó menos. Datos: hoja <b>HORIZON_FORECAST</b> del Horizon (Mode =
+    Marítimo, Status = Confirmado) + montos reales de liquidaciones donde existen.
+  </div>
+
+  <div class="kpi-strip" id="kpiStrip"></div>
+
+  <div class="card">
+    <div class="card-title">Diferencia vs. contenedor propio, por Pack Plan</div>
+    <div class="card-sub">Barras sólidas = histórico (real o estimado por peso) · barras punteadas = proyección (2 FCL/semana con el promedio histórico, hasta PP57 ≈ fin de enero 2027, sin forecast real todavía)</div>
+    <div class="chart-wrap"><canvas id="chartDiff"></canvas></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Espacio libre por contenedor (14,000 kg de referencia)</div>
+    <div class="card-sub">14,000 kg menos lo que cargaron Hortifrut + HFE Berries juntos en ese contenedor. Negativo = el contenedor superó ese peso de referencia.</div>
+    <div class="chart-wrap" style="height:260px"><canvas id="chartKg"></canvas></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Detalle por caso</div>
+    <div class="card-sub">13 casos válidos, PP28–PP40 (más 3 casos con error de dato, ver botón de arriba)</div>
+    <div class="table-scroll">
+      <table id="casesTable">
+        <thead><tr>
+          <th>RH</th><th>Pack Plan</th><th>Fuente</th><th>Kg Hortifrut</th><th>Kg HFE Berries</th><th>Kg total</th>
+          <th>Pagó Hortifrut</th><th>Costo solo</th><th>Diferencia</th><th>Kg libres</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="errModal">
+  <div class="modal">
+    <h3>Casos excluidos por error de dato</h3>
+    <div class="modal-sub">No se incluyen en el gráfico ni en la tabla porque el dato de origen en el Horizon es inconsistente.</div>
+    <div id="errList"></div>
+    <button type="button" class="modal-close" id="errModalClose">Cerrar</button>
+  </div>
+</div>
+
+<script>
+// =====================================================================
+// Dataset fijo (snapshot), calculado a partir de HORIZON_FORECAST_2627_V1.xlsm
+// (hoja HORIZON_FORECAST, Mode=Marítimo, Status=Confirmado, Instruction con
+// shippers "Hortifrut Perú" + "HFE Berries") + montos reales de liquidaciones
+// para los RH donde el área de liquidaciones ya los entregó. Para el resto,
+// el monto pagado por Hortifrut se estima prorrateando la tarifa del Core
+// para la ruta consolidada Chao+Olmos (PAITA - OLMOS - CHAO - PAITA, LIP)
+// por el % de kg que cargó Hortifrut en ese contenedor. El "costo solo" usa
+// la tarifa del Core para la ruta Chao individual (PAITA - CHAO - PAITA, LIP).
+// Esta vista es independiente del resto del Core: no lee ni escribe en
+// Supabase, no depende de Maestro/Adjudicación — si se pide retirarla, basta
+// con quitar este archivo y el botón que enlaza a él.
+// =====================================================================
+const CASOS = [
+  {"rh": "RH-0153", "pack_plan": 28, "hortifrut_kg": 8400.0, "hfe_kg": 3600.0, "total_kg": 12000.0, "pagado_hortifrut": 1321.6, "fuente": "real", "costo_solo": 1561.6, "diferencia": -240.0, "kg_libres": 2000.0},
+  {"rh": "RH-0190", "pack_plan": 29, "hortifrut_kg": 11992.5, "hfe_kg": 6000.0, "total_kg": 17992.5, "pagado_hortifrut": 901.58, "fuente": "real", "costo_solo": 1561.6, "diferencia": -660.02, "kg_libres": -3992.5},
+  {"rh": "RH-0265", "pack_plan": 30, "hortifrut_kg": 5985.0, "hfe_kg": 6000.0, "total_kg": 11985.0, "pagado_hortifrut": 901.57, "fuente": "real", "costo_solo": 1561.6, "diferencia": -660.03, "kg_libres": 2015.0},
+  {"rh": "RH-0542", "pack_plan": 34, "hortifrut_kg": 18115.2, "hfe_kg": 2664.0, "total_kg": 20779.2, "pagado_hortifrut": 1627.29, "fuente": "real", "costo_solo": 1561.6, "diferencia": 65.69, "kg_libres": -6779.2},
+  {"rh": "RH-0598", "pack_plan": 35, "hortifrut_kg": 18115.2, "hfe_kg": 2664.0, "total_kg": 20779.2, "pagado_hortifrut": 1701.75, "fuente": "real", "costo_solo": 1561.6, "diferencia": 140.15, "kg_libres": -6779.2},
+  {"rh": "RH-0605", "pack_plan": 35, "hortifrut_kg": 6336.0, "hfe_kg": 3726.0, "total_kg": 10062.0, "pagado_hortifrut": 1175.39, "fuente": "real", "costo_solo": 1561.6, "diferencia": -386.21, "kg_libres": 3938.0},
+  {"rh": "RH-0672", "pack_plan": 36, "hortifrut_kg": 14644.8, "hfe_kg": 5328.0, "total_kg": 19972.8, "pagado_hortifrut": 1366.4, "fuente": "real", "costo_solo": 1561.6, "diferencia": -195.2, "kg_libres": -5972.8},
+  {"rh": "RH-0665", "pack_plan": 36, "hortifrut_kg": 5760.0, "hfe_kg": 3726.0, "total_kg": 9486.0, "pagado_hortifrut": 1185.28, "fuente": "real", "costo_solo": 1561.6, "diferencia": -376.32, "kg_libres": 4514.0},
+  {"rh": "RH-0752", "pack_plan": 37, "hortifrut_kg": 11721.6, "hfe_kg": 3726.0, "total_kg": 15447.6, "pagado_hortifrut": 1475.7, "fuente": "real", "costo_solo": 1561.6, "diferencia": -85.9, "kg_libres": -1447.6},
+  {"rh": "RH-0826", "pack_plan": 38, "hortifrut_kg": 12672.0, "hfe_kg": 3726.0, "total_kg": 16398.0, "pagado_hortifrut": 1117.26, "fuente": "estimado", "costo_solo": 1561.6, "diferencia": -444.34, "kg_libres": -2398.0},
+  {"rh": "RH-0844", "pack_plan": 39, "hortifrut_kg": 19180.8, "hfe_kg": 1776.0, "total_kg": 20956.8, "pagado_hortifrut": 1323.25, "fuente": "estimado", "costo_solo": 1561.6, "diferencia": -238.35, "kg_libres": -6956.8},
+  {"rh": "RH-0898", "pack_plan": 40, "hortifrut_kg": 6480.0, "hfe_kg": 720.0, "total_kg": 7200.0, "pagado_hortifrut": 1301.19, "fuente": "estimado", "costo_solo": 1561.6, "diferencia": -260.41, "kg_libres": 6800.0},
+  {"rh": "RH-0906", "pack_plan": 40, "hortifrut_kg": 10656.0, "hfe_kg": 8880.0, "total_kg": 19536.0, "pagado_hortifrut": 788.6, "fuente": "estimado", "costo_solo": 1561.6, "diferencia": -773.0, "kg_libres": -5536.0},
+];
+
+const ERRORES = [
+  {"rh": "RH-0601", "pack_plan": 35, "motivo": "FCL total 1.3 > 1.0 entre ambos shippers — parece que esta RH usó más de un contenedor, no se puede comparar contra \"1 contenedor propio\"."},
+  {"rh": "RH-0833", "pack_plan": 38, "motivo": "El peso de Hortifrut viene como \"425364\" en el Horizon (sin separadores) — valor fuera de todo rango razonable, parece error de digitación."},
+  {"rh": "RH-0843", "pack_plan": 39, "motivo": "Hortifrut y HFE Berries tienen números de contenedor distintos (CAIU5580407 vs SZLU9778644) bajo la misma RH — no parece ser un contenedor realmente compartido."},
+];
+
+// Proyección: como no hay forecast real de consolidados a futuro, se proyectan 2 contenedores
+// por semana desde la última semana con datos reales (PP40) hasta la semana 4 de enero del
+// próximo año (~PP57), usando el promedio histórico de diferencia por contenedor. Es una
+// extrapolación simple a propósito (no hay con qué afinarla todavía).
+const AVG_DIFF = CASOS.reduce((a, c) => a + c.diferencia, 0) / CASOS.length;
+const PROY_PP_INICIO = 41;
+const PROY_PP_FIN = 57; // ~27-ene-2027, semana 4 de enero
+const PROY_FCL_SEMANA = 2;
+const proyeccion = [];
+for (let pp = PROY_PP_INICIO; pp <= PROY_PP_FIN; pp++) {
+  proyeccion.push({ pack_plan: pp, diferencia_total: AVG_DIFF * PROY_FCL_SEMANA });
+}
+
+function fmtUSD(n, opts) {
+  const o = opts || {};
+  const dec = o.decimals !== undefined ? o.decimals : 2;
+  const sign = n < 0 ? '-' : '';
+  return sign + '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+}
+function fmtNum(n, dec) {
+  return Number(n).toLocaleString('en-US', { minimumFractionDigits: dec || 0, maximumFractionDigits: dec || 0 });
+}
+
+// ---- KPIs ----
+const totalDiferenciaReal = CASOS.reduce((a, c) => a + c.diferencia, 0);
+const totalDiferenciaProy = proyeccion.reduce((a, p) => a + p.diferencia_total, 0);
+const totalKgLibres = CASOS.reduce((a, c) => a + c.kg_libres, 0);
+const nReal = CASOS.filter(c => c.fuente === 'real').length;
+const nEst = CASOS.filter(c => c.fuente === 'estimado').length;
+
+document.getElementById('errCount').textContent = ERRORES.length;
+
+function kpiCard(label, value, cls, sub) {
+  return `<div class="kpi-card"><div class="kpi-label">${label}</div><div class="kpi-value ${cls || ''}">${value}</div>${sub ? `<div class="kpi-sub">${sub}</div>` : ''}</div>`;
+}
+document.getElementById('kpiStrip').innerHTML = [
+  kpiCard('Diferencia histórica total', fmtUSD(totalDiferenciaReal, { decimals: 0 }), totalDiferenciaReal > 0 ? 'pos' : 'neg', `${CASOS.length} contenedores · PP28–PP40 · ${totalDiferenciaReal > 0 ? 'sobrecosto' : 'ahorro'} neto`),
+  kpiCard('Diferencia proyectada', fmtUSD(totalDiferenciaProy, { decimals: 0 }), totalDiferenciaProy > 0 ? 'pos' : 'neg', `PP${PROY_PP_INICIO}–PP${PROY_PP_FIN} · ${PROY_FCL_SEMANA} FCL/semana estimados`),
+  kpiCard('Promedio por contenedor', fmtUSD(AVG_DIFF, { decimals: 0 }), AVG_DIFF > 0 ? 'pos' : 'neg', `${nReal} con monto real · ${nEst} estimados por peso`),
+  kpiCard('Espacio libre acumulado', fmtNum(totalKgLibres, 0) + ' kg', '', 'vs. 14,000 kg de referencia por contenedor'),
+].join('');
+
+// ---- Tabla ----
+const tbody = document.querySelector('#casesTable tbody');
+tbody.innerHTML = CASOS.map(c => `
+  <tr>
+    <td style="font-family:var(--mono);font-weight:700">${c.rh}</td>
+    <td>PP${c.pack_plan}</td>
+    <td><span class="tag ${c.fuente === 'real' ? 'tag-real' : 'tag-est'}">${c.fuente === 'real' ? 'Real' : 'Estimado'}</span></td>
+    <td>${fmtNum(c.hortifrut_kg, 0)}</td>
+    <td>${fmtNum(c.hfe_kg, 0)}</td>
+    <td>${fmtNum(c.total_kg, 0)}</td>
+    <td>${fmtUSD(c.pagado_hortifrut)}</td>
+    <td>${fmtUSD(c.costo_solo)}</td>
+    <td style="color:${c.diferencia > 0 ? 'var(--red)' : 'var(--green)'};font-weight:700">${c.diferencia > 0 ? '+' : ''}${fmtUSD(c.diferencia)}</td>
+    <td style="color:${c.kg_libres < 0 ? 'var(--red)' : 'var(--text2)'}">${c.kg_libres > 0 ? '+' : ''}${fmtNum(c.kg_libres, 0)}</td>
+  </tr>
+`).join('');
+
+// ---- Modal de errores ----
+document.getElementById('errList').innerHTML = ERRORES.map(e => `
+  <div class="err-row"><span class="err-rh">${e.rh}</span><span class="err-pp">PP${e.pack_plan}</span><div class="err-motivo">${e.motivo}</div></div>
+`).join('');
+const errModal = document.getElementById('errModal');
+document.getElementById('alertBtn').addEventListener('click', () => errModal.classList.add('open'));
+document.getElementById('errModalClose').addEventListener('click', () => errModal.classList.remove('open'));
+errModal.addEventListener('click', (e) => { if (e.target === errModal) errModal.classList.remove('open'); });
+
+// ---- Gráfico de diferencia por Pack Plan ----
+const labels = [...CASOS.map(c => 'PP' + c.pack_plan), ...proyeccion.map(p => 'PP' + p.pack_plan)];
+const dataHist = CASOS.map(c => c.diferencia);
+const dataProy = proyeccion.map(p => p.diferencia_total);
+const dataDiff = [...dataHist, ...new Array(proyeccion.length).fill(null)];
+const dataDiffProy = [...new Array(CASOS.length).fill(null), ...dataProy];
+
+const isDark = document.body.getAttribute('data-theme') === 'dark';
+const red = isDark ? '#FF453A' : '#FF3B30';
+const green = isDark ? '#30D158' : '#34C759';
+const grid = isDark ? 'rgba(255,255,255,.07)' : 'rgba(16,17,20,.07)';
+const tickColor = isDark ? 'rgba(235,238,245,.55)' : 'rgba(16,17,20,.55)';
+
+function colorForValue(v) { return v > 0 ? red : green; }
+
+new Chart(document.getElementById('chartDiff'), {
+  type: 'bar',
+  data: {
+    labels,
+    datasets: [
+      { label: 'Histórico', data: dataDiff, backgroundColor: dataHist.map(colorForValue), borderRadius: 4, maxBarThickness: 28 },
+      { label: 'Proyectado', data: dataDiffProy, backgroundColor: dataProy.map(v => colorForValue(v) + '80'), borderRadius: 4, maxBarThickness: 28 },
+    ],
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { labels: { color: tickColor, font: { family: 'Inter', size: 11 } } }, tooltip: { callbacks: { label: (ctx) => fmtUSD(ctx.raw) } } },
+    scales: {
+      x: { grid: { display: false }, ticks: { color: tickColor, font: { size: 10 } } },
+      y: { grid: { color: grid }, ticks: { color: tickColor, callback: (v) => fmtUSD(v, { decimals: 0 }) } },
+    },
+  },
+});
+
+new Chart(document.getElementById('chartKg'), {
+  type: 'bar',
+  data: {
+    labels: CASOS.map(c => 'PP' + c.pack_plan + ' · ' + c.rh),
+    datasets: [{ label: 'Kg libres (14,000 - cargado)', data: CASOS.map(c => c.kg_libres), backgroundColor: CASOS.map(c => c.kg_libres < 0 ? red : (isDark ? '#0A84FF' : '#007AFF')), borderRadius: 4, maxBarThickness: 24 }],
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => fmtNum(ctx.raw, 0) + ' kg' } } },
+    scales: {
+      x: { grid: { display: false }, ticks: { color: tickColor, font: { size: 9 }, maxRotation: 60, minRotation: 60 } },
+      y: { grid: { color: grid }, ticks: { color: tickColor, callback: (v) => fmtNum(v, 0) } },
+    },
+  },
+});
+
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('a[href]');
+  if (!a) return;
+  const href = a.getAttribute('href') || '';
+  if (href.startsWith('presupuesto_transporte_dashboard_v2.html')) {
+    e.preventDefault();
+    window.parent.postMessage({ type: 'navigate', view: 'dashboard' }, '*');
+  }
+});
+window.parent.postMessage({ type: 'ready', view: 'consolidados' }, '*');
+<%SCRIPT_END%>
+</body>
+</html>
+</script>
 
 <script>
 (function() {
@@ -3502,7 +3818,7 @@ window.parent.postMessage({ type: 'ready', view: 'adjudicacion' }, '*');
     var raw = document.getElementById(id).textContent;
     return raw.split('<%SCRIPT_END%>').join('<' + '/script>');
   }
-  var views = ['dashboard', 'maestro', 'adjudicacion'];
+  var views = ['dashboard', 'maestro', 'adjudicacion', 'consolidados'];
   var frames = {};
   views.forEach(function(v) {
     frames[v] = document.getElementById('frame-' + v);
