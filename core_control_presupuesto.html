@@ -3473,7 +3473,6 @@ window.parent.postMessage({ type: 'ready', view: 'adjudicacion' }, '*');
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Consolidados HFE Berries — Hortifrut</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"><%SCRIPT_END%>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
   html[data-theme="light"] {
@@ -3517,11 +3516,12 @@ window.parent.postMessage({ type: 'ready', view: 'adjudicacion' }, '*');
   .kpi-value { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
   .kpi-sub { font-size: 11px; color: var(--text3); margin-top: 3px; }
   .pos { color: var(--red); } .neg { color: var(--green); }
+  .mini-btn { margin-top: 4px; font-family: var(--sans); font-size: 10.5px; font-weight: 700; padding: 3px 8px; border-radius: 7px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text2); cursor: pointer; }
+  .mini-btn:hover { background: var(--bg4); color: var(--text); }
 
   .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 18px; }
   .card-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
   .card-sub { font-size: 11.5px; color: var(--text3); margin-bottom: 14px; }
-  .chart-wrap { position: relative; height: 320px; }
 
   table { width: 100%; border-collapse: collapse; font-size: 12px; }
   th { text-align: left; font-size: 10.5px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: .02em; padding: 8px 10px; border-bottom: 1px solid var(--border2); position: sticky; top: 0; background: var(--bg2); }
@@ -3582,18 +3582,6 @@ window.parent.postMessage({ type: 'ready', view: 'adjudicacion' }, '*');
   <div class="kpi-strip" id="kpiStrip"></div>
 
   <div class="card">
-    <div class="card-title">Diferencia vs. contenedor propio, por Pack Plan</div>
-    <div class="card-sub">Barras sólidas = histórico (real o estimado por peso) · barras punteadas = proyección (2 FCL/semana, PP41–PP52, con tarifa de consolidado actual de $2,000 y peso promedio histórico, sin forecast real todavía)</div>
-    <div class="chart-wrap"><canvas id="chartDiff"></canvas></div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">Espacio libre por contenedor</div>
-    <div class="card-sub" id="kgCardSub"></div>
-    <div class="chart-wrap" style="height:260px"><canvas id="chartKg"></canvas></div>
-  </div>
-
-  <div class="card">
     <div class="card-title">Detalle por caso</div>
     <div class="card-sub" id="tableSub"></div>
     <div class="table-scroll">
@@ -3601,7 +3589,7 @@ window.parent.postMessage({ type: 'ready', view: 'adjudicacion' }, '*');
         <thead><tr>
           <th>RH</th><th>Fuente</th><th>Kg Hortifrut</th><th>Kg HFE Berries</th><th>Kg total</th>
           <th>Pago total</th><th>Costo solo</th>
-          <th>$/kg HFE Berries</th><th>$/kg Hortifrut (compartido)</th><th>Diferencia total</th><th>$/kg si todo fuera Chao</th><th>Kg libres</th>
+          <th>$/kg HFE Berries</th><th>$/kg Hortifrut (compartido)</th><th>Diferencia total</th><th>$/kg si todo fuera Chao</th>
         </tr></thead>
         <tbody></tbody>
       </table>
@@ -3633,8 +3621,6 @@ window.parent.postMessage({ type: 'ready', view: 'adjudicacion' }, '*');
 // con quitar este archivo y el botón que enlaza a él.
 // =====================================================================
 const CASOS = [
-  {"rh": "RH-0153", "pack_plan": 28, "hortifrut_kg": 8400.0, "hfe_kg": 3600.0, "total_kg": 12000.0, "pagado_hortifrut": 1321.6, "pagado_hfe": 566.4, "pago_total": 1888.0, "fuente": "real", "costo_solo": 1475.0, "diferencia": -153.4, "usd_kg_hfe": 0.1573, "usd_kg_hortifrut": 0.1573, "usd_kg_solo": 0.1229},
-  {"rh": "RH-0190", "pack_plan": 29, "hortifrut_kg": 11992.5, "hfe_kg": 6000.0, "total_kg": 17992.5, "pagado_hortifrut": 901.58, "pagado_hfe": 903.83, "pago_total": 1805.41, "fuente": "real", "costo_solo": 1475.0, "diferencia": -573.42, "usd_kg_hfe": 0.1506, "usd_kg_hortifrut": 0.0752, "usd_kg_solo": 0.082},
   {"rh": "RH-0265", "pack_plan": 30, "hortifrut_kg": 5985.0, "hfe_kg": 6000.0, "total_kg": 11985.0, "pagado_hortifrut": 901.57, "pagado_hfe": 903.83, "pago_total": 1805.4, "fuente": "real", "costo_solo": 1475.0, "diferencia": -573.43, "usd_kg_hfe": 0.1506, "usd_kg_hortifrut": 0.1506, "usd_kg_solo": 0.1231},
   {"rh": "RH-0542", "pack_plan": 34, "hortifrut_kg": 18115.2, "hfe_kg": 2664.0, "total_kg": 20779.2, "pagado_hortifrut": 1627.29, "pagado_hfe": 239.31, "pago_total": 1866.6, "fuente": "real", "costo_solo": 1475.0, "diferencia": 152.29, "usd_kg_hfe": 0.0898, "usd_kg_hortifrut": 0.0898, "usd_kg_solo": 0.071},
   {"rh": "RH-0598", "pack_plan": 35, "hortifrut_kg": 18115.2, "hfe_kg": 2664.0, "total_kg": 20779.2, "pagado_hortifrut": 1701.75, "pagado_hfe": 250.25, "pago_total": 1952.0, "fuente": "real", "costo_solo": 1475.0, "diferencia": 226.75, "usd_kg_hfe": 0.0939, "usd_kg_hortifrut": 0.0939, "usd_kg_solo": 0.071},
@@ -3652,12 +3638,6 @@ const CASOS = [
 ];
 
 const ERRORES = [];
-
-// Referencia de "espacio libre": en vez de asumir 14,000 kg fijos por contenedor, se usa el
-// promedio histórico real de kg totales (Hortifrut + HFE Berries) cargados en estos 16
-// contenedores compartidos — eso es lo que de verdad se ha estado cargando en la práctica.
-const REF_KG = CASOS.reduce((a, c) => a + c.total_kg, 0) / CASOS.length;
-function kgLibres(c) { const v = REF_KG - c.total_kg; return Math.abs(v) < 0.5 ? 0 : v; }
 
 // Desde PP38 en adelante, todo caso que no sea "real" (estimado o proyectado) usa la tarifa
 // de consolidado ACTUAL de $2,000 (pago total), no la tarifa histórica de $1,445.77 (esa ya
@@ -3709,11 +3689,9 @@ function fmtNum(n, dec) {
 
 // ---- KPIs ----
 function diferenciaTotal(c) { return (c.usd_kg_hortifrut - c.usd_kg_solo) * c.hortifrut_kg; }
-const totalDiferenciaReal = CASOS.reduce((a, c) => a + c.diferencia, 0);
+const totalDiferenciaReal = CASOS.reduce((a, c) => a + diferenciaTotal(c), 0);
 const AVG_DIFF = totalDiferenciaReal / CASOS.length;
-const totalDiferenciaProy = PROYECCION.reduce((a, c) => a + c.diferencia, 0);
-const totalKgLibresRaw = CASOS.reduce((a, c) => a + kgLibres(c), 0);
-const totalKgLibres = Math.abs(totalKgLibresRaw) < 0.5 ? 0 : totalKgLibresRaw;
+const totalDiferenciaProy = PROYECCION.reduce((a, c) => a + diferenciaTotal(c), 0);
 const nReal = CASOS.filter(c => c.fuente === 'real').length;
 const nEst = CASOS.filter(c => c.fuente === 'estimado').length;
 
@@ -3722,22 +3700,27 @@ if (ERRORES.length === 0) document.getElementById('alertBtn').style.display = 'n
 const ppMin = Math.min(...CASOS.map(c => c.pack_plan));
 const ppMaxHist = Math.max(...CASOS.map(c => c.pack_plan));
 document.getElementById('tableSub').textContent = `${CASOS.length} casos históricos (PP${ppMin}–PP${ppMaxHist}) + ${PROYECCION.length} proyectados (PP${PROY_PP_INICIO}–PP${PROY_PP_FIN})` + (ERRORES.length ? ` · ${ERRORES.length} casos con error de dato, ver botón de arriba` : '');
-document.getElementById('kgCardSub').textContent = `${fmtNum(REF_KG, 0)} kg — promedio histórico de los ${CASOS.length} contenedores reales/estimados — menos lo que cargaron Hortifrut + HFE Berries juntos en ese contenedor. Negativo = el contenedor superó ese promedio.`;
 
 function kpiCard(label, value, cls, sub) {
   return `<div class="kpi-card"><div class="kpi-label">${label}</div><div class="kpi-value ${cls || ''}">${value}</div>${sub ? `<div class="kpi-sub">${sub}</div>` : ''}</div>`;
 }
-document.getElementById('kpiStrip').innerHTML = [
-  kpiCard('Diferencia histórica total', fmtUSD(totalDiferenciaReal, { decimals: 0 }), totalDiferenciaReal > 0 ? 'pos' : 'neg', `${CASOS.length} contenedores · PP${ppMin}–PP${ppMaxHist} · ${totalDiferenciaReal > 0 ? 'sobrecosto' : 'ahorro'} neto`),
-  kpiCard('Diferencia proyectada', fmtUSD(totalDiferenciaProy, { decimals: 0 }), totalDiferenciaProy > 0 ? 'pos' : 'neg', `PP${PROY_PP_INICIO}–PP${PROY_PP_FIN} · ${PROY_FCL_SEMANA} FCL/semana, tarifa $2,000`),
-  kpiCard('Promedio por contenedor', fmtUSD(AVG_DIFF, { decimals: 0 }), AVG_DIFF > 0 ? 'pos' : 'neg', `${nReal} con monto real · ${nEst} estimados por peso`),
-  kpiCard('Espacio libre acumulado', fmtNum(totalKgLibres, 0) + ' kg', '', `vs. ${fmtNum(REF_KG, 0)} kg (promedio histórico por contenedor)`),
-].join('');
+let includeProy = false;
+function renderKpis() {
+  const totalContenedores = CASOS.length + (includeProy ? PROYECCION.length : 0);
+  document.getElementById('kpiStrip').innerHTML = [
+    kpiCard('Diferencia histórica total', fmtUSD(totalDiferenciaReal, { decimals: 0 }), totalDiferenciaReal > 0 ? 'pos' : 'neg', `${CASOS.length} contenedores · PP${ppMin}–PP${ppMaxHist} · ${totalDiferenciaReal > 0 ? 'sobrecosto' : 'ahorro'} neto`),
+    kpiCard('Diferencia proyectada', fmtUSD(totalDiferenciaProy, { decimals: 0 }), totalDiferenciaProy > 0 ? 'pos' : 'neg', `PP${PROY_PP_INICIO}–PP${PROY_PP_FIN} · ${PROY_FCL_SEMANA} FCL/semana, tarifa $2,000`),
+    kpiCard('Promedio por contenedor', fmtUSD(AVG_DIFF, { decimals: 0 }), AVG_DIFF > 0 ? 'pos' : 'neg', `${nReal} con monto real · ${nEst} estimados por peso`),
+    `<div class="kpi-card"><div class="kpi-label">Contenedores totales</div><div class="kpi-value">${totalContenedores}</div><div class="kpi-sub">${CASOS.length} históricos${includeProy ? ' + ' + PROYECCION.length + ' proyectados' : ''}</div><button type="button" class="mini-btn" id="toggleProyBtn">${includeProy ? '− Excluir proyección' : '+ Incluir proyección'}</button></div>`,
+  ].join('');
+  document.getElementById('toggleProyBtn').addEventListener('click', () => { includeProy = !includeProy; renderKpis(); });
+}
+renderKpis();
 
 // ---- Tabla (1 fila resumen por Pack Plan, desglosable a los RH) ----
 const FUENTE_TAG = { real: ['tag-real', 'Real'], estimado: ['tag-est', 'Estimado'], 'Proyectado SOP': ['tag-proy', 'Proyectado SOP'] };
 function kgPct(kg, total) { return `${Math.round(kg)}(%${Math.round(kg / total * 100)})`; }
-function rowCells(c, kgLib, difTotal) {
+function rowCells(c, difTotal) {
   const [tagCls, tagLabel] = FUENTE_TAG[c.fuente];
   return `
     <td style="font-family:var(--mono);font-weight:700">${c.rh || '—'}</td>
@@ -3751,7 +3734,6 @@ function rowCells(c, kgLib, difTotal) {
     <td style="color:${c.usd_kg_hortifrut > c.usd_kg_solo ? 'var(--red)' : 'var(--green)'};font-weight:700">${fmtUSD(c.usd_kg_hortifrut, { decimals: 4 })}</td>
     <td style="color:${difTotal > 0 ? 'var(--red)' : 'var(--green)'};font-weight:700">${difTotal > 0 ? '+' : ''}${fmtUSD(difTotal)}</td>
     <td>${fmtUSD(c.usd_kg_solo, { decimals: 4 })}</td>
-    <td style="color:${kgLib < 0 ? 'var(--red)' : 'var(--text2)'}">${kgLib > 0 ? '+' : ''}${fmtNum(kgLib, 0)}</td>
   `;
 }
 
@@ -3780,13 +3762,11 @@ for (const [pp, rows] of groupsByPP) {
     usd_kg_solo: sumCostoSolo / sumTotal,
   };
   if (summary.fuente === 'mixto') FUENTE_TAG.mixto = ['tag-mixto', 'Mixto'];
-  const summaryKgLib = rows.reduce((a, c) => a + kgLibres(c), 0);
   const summaryDifTotal = (summary.usd_kg_hortifrut - summary.usd_kg_solo) * summary.hortifrut_kg;
-  html += `<tr class="pp-group" data-pp="${pp}"><td class="pp-arrow">▸ Pack Plan ${pp}</td>${rowCells(summary, summaryKgLib, summaryDifTotal).replace(/^\s*<td[^>]*>[^<]*<\/td>/, '')}</tr>`;
+  html += `<tr class="pp-group" data-pp="${pp}"><td class="pp-arrow">▸ Pack Plan ${pp}</td>${rowCells(summary, summaryDifTotal).replace(/^\s*<td[^>]*>[^<]*<\/td>/, '')}</tr>`;
   for (const c of rows) {
-    const kgLib = kgLibres(c);
     const difTotal = diferenciaTotal(c);
-    html += `<tr class="pp-detail" data-pp-detail="${pp}" style="display:none">${rowCells(c, kgLib, difTotal)}</tr>`;
+    html += `<tr class="pp-detail" data-pp-detail="${pp}" style="display:none">${rowCells(c, difTotal)}</tr>`;
   }
 }
 tbody.innerHTML = html;
@@ -3807,56 +3787,6 @@ const errModal = document.getElementById('errModal');
 document.getElementById('alertBtn').addEventListener('click', () => errModal.classList.add('open'));
 document.getElementById('errModalClose').addEventListener('click', () => errModal.classList.remove('open'));
 errModal.addEventListener('click', (e) => { if (e.target === errModal) errModal.classList.remove('open'); });
-
-// ---- Gráfico de diferencia por Pack Plan ----
-const labels = TABLE_ROWS.map(c => 'PP' + c.pack_plan + ' · ' + (c.rh || 'Proy.'));
-const dataHist = CASOS.map(c => c.diferencia);
-const dataProy = PROYECCION.map(c => c.diferencia);
-const dataDiff = [...dataHist, ...new Array(PROYECCION.length).fill(null)];
-const dataDiffProy = [...new Array(CASOS.length).fill(null), ...dataProy];
-
-const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-const red = isDark ? '#FF453A' : '#FF3B30';
-const green = isDark ? '#30D158' : '#34C759';
-const grid = isDark ? 'rgba(255,255,255,.07)' : 'rgba(16,17,20,.07)';
-const tickColor = isDark ? 'rgba(235,238,245,.55)' : 'rgba(16,17,20,.55)';
-
-function colorForValue(v) { return v > 0 ? red : green; }
-
-new Chart(document.getElementById('chartDiff'), {
-  type: 'bar',
-  data: {
-    labels,
-    datasets: [
-      { label: 'Histórico', data: dataDiff, backgroundColor: dataHist.map(colorForValue), borderRadius: 4, maxBarThickness: 28 },
-      { label: 'Proyectado', data: dataDiffProy, backgroundColor: dataProy.map(v => colorForValue(v) + '80'), borderRadius: 4, maxBarThickness: 28 },
-    ],
-  },
-  options: {
-    responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { labels: { color: tickColor, font: { family: 'Inter', size: 11 } } }, tooltip: { callbacks: { label: (ctx) => fmtUSD(ctx.raw) } } },
-    scales: {
-      x: { grid: { display: false }, ticks: { color: tickColor, font: { size: 9 }, maxRotation: 60, minRotation: 60 } },
-      y: { grid: { color: grid }, ticks: { color: tickColor, callback: (v) => fmtUSD(v, { decimals: 0 }) } },
-    },
-  },
-});
-
-new Chart(document.getElementById('chartKg'), {
-  type: 'bar',
-  data: {
-    labels: CASOS.map(c => 'PP' + c.pack_plan + ' · ' + c.rh),
-    datasets: [{ label: `Kg libres (${fmtNum(REF_KG, 0)} - cargado)`, data: CASOS.map(c => kgLibres(c)), backgroundColor: CASOS.map(c => kgLibres(c) < 0 ? red : (isDark ? '#0A84FF' : '#007AFF')), borderRadius: 4, maxBarThickness: 24 }],
-  },
-  options: {
-    responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => fmtNum(ctx.raw, 0) + ' kg' } } },
-    scales: {
-      x: { grid: { display: false }, ticks: { color: tickColor, font: { size: 9 }, maxRotation: 60, minRotation: 60 } },
-      y: { grid: { color: grid }, ticks: { color: tickColor, callback: (v) => fmtNum(v, 0) } },
-    },
-  },
-});
 
 document.addEventListener('click', (e) => {
   const a = e.target.closest('a[href]');
