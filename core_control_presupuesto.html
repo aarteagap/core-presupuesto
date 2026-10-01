@@ -1143,7 +1143,18 @@ function computeActualTargetSeries(routes, weeks) {
       // pool total de viajes a partir del % antiguo — eso se rompía apenas un proveedor arrancaba
       // con 0% de adjudicación original (ej. uno que entra recién con la edición nueva).
       const rutaViajes = list.reduce((a, r) => a + r.viajes_estimados, 0);
-      const rutaTarget = list.reduce((a, r) => a + tarifaForWeek(r, w) * pctForWeek(r, w), 0);
+      const rutaTarget = list.reduce((a, r) => {
+        // En el pool global de Terrestre, las filas "legado" que nunca se tocaron (ej.
+        // Salaverry-Sur/Interoceanica-Barueri: 0 viajes, nunca tuvieron una versión nueva en
+        // Maestro) todavía cargan un % de adjudicación VIEJO del presupuesto original, de antes
+        // de que la rotación real se moviera a las rutas Chao — sin excluirlas, ese % viejo se
+        // suma de más al pool actual e infla el Target Actual. Antes esto no se notaba porque
+        // cada ruta pesaba por separado y estas quedaban aisladas en un grupo sin peso (ver
+        // comentario arriba); ahora que Terrestre comparte un solo pool, hay que excluirlas a
+        // propósito. No afecta a Marítimo (agrupa por ruta como siempre).
+        if (r.modo === 'Terrestre' && !r.tiene_nueva) return a;
+        return a + tarifaForWeek(r, w) * pctForWeek(r, w);
+      }, 0);
       num += rutaTarget * rutaViajes;
     });
     return num / totalViajes;
