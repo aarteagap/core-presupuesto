@@ -1126,7 +1126,14 @@ function computeActualTargetSeries(routes, weeks) {
   const base = routes;
   const totalViajes = base.reduce((a, r) => a + r.viajes_estimados, 0);
   if (totalViajes <= 0) return weeks.map(() => null);
-  const grouped = groupBy(base, r => r.ruta);
+  // Marítimo: el 100% de cada ruta se reparte entre SUS propios proveedores, así que se agrupa por
+  // ruta (cada ruta es un "pool" aparte). Terrestre: el 100% se reparte entre TODAS las rutas y
+  // proveedores a la vez (1 solo camión activo esa semana, y puede ganar cualquier corredor) — si se
+  // agrupara por ruta individual, el peso fijo (viajes_estimados) queda concentrado en una sola ruta
+  // "ancla" y cuando la adjudicación real se mueve a otro corredor (ej. de Chao-Sur a
+  // Chao-Interoceanica) ese corredor nuevo pesa 0 y su 100% real desaparece del cálculo — por eso acá
+  // se agrupa todo Terrestre en un solo pool, igual que en la validación "suma 100%" de Maestro.
+  const grouped = groupBy(base, r => r.modo === 'Terrestre' ? '__TERRESTRE_GLOBAL__' : r.ruta);
   return weeks.map(w => {
     let num = 0;
     grouped.forEach((list) => {
@@ -1362,11 +1369,13 @@ function renderWeeklyTrend() {
   const targetActualSeries = computeActualTargetSeries(routes, weeks);
   const exec = computeExecutedSeries(routes, weeks);
   // Antes de PP27 los contratos ni siquiera habían arrancado — no se muestra ninguna línea de
-  // target ahí. Y entre PP27 y PP29 (antes de PP30) todavía no había ningún cambio de tarifa
-  // registrado: en ese tramo solo se usa Target Inicial como referencia, así que Target Actual se
-  // oculta (aunque numéricamente ya coincide con Target Inicial) para no duplicar la misma línea.
+  // target ahí. En Marítimo, entre PP27 y PP29 (antes de PP30) todavía no había ningún cambio de
+  // tarifa registrado: en ese tramo solo se usa Target Inicial como referencia, así que Target Actual
+  // se oculta (aunque numéricamente ya coincide con Target Inicial) para no duplicar la misma línea.
+  // En Terrestre el primer cambio real ya ocurre en PP28 (la rotación semanal arranca ahí) — aplicar
+  // el mismo PP30 fijo de Marítimo tapaba datos reales, así que ahí se muestra desde el inicio.
   const CONTRATOS_DESDE_PP = 27;
-  const TARGET_ACTUAL_DESDE_PP = 30;
+  const TARGET_ACTUAL_DESDE_PP = state.mode === 'Terrestre' ? CONTRATOS_DESDE_PP : 30;
   const flatInicial = weeks.map(w => w < CONTRATOS_DESDE_PP ? null : targetInicial);
   const flatFsc = weeks.map(w => w < CONTRATOS_DESDE_PP ? null : targetFsc);
   const flatActual = targetActualSeries.map((v, i) => weeks[i] < TARGET_ACTUAL_DESDE_PP ? null : v);
