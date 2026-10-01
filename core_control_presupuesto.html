@@ -3532,6 +3532,7 @@ window.parent.postMessage({ type: 'ready', view: 'adjudicacion' }, '*');
   .tag-est { background: rgba(255,159,10,.16); color: var(--yellow-bright); }
   .tag-proy { background: rgba(142,142,147,.16); color: var(--text2); }
   .table-scroll { overflow-x: auto; }
+  .pp-group td { background: var(--bg3); font-size: 11px; font-weight: 800; color: var(--text2); text-transform: uppercase; letter-spacing: .03em; padding: 6px 10px; }
 
   .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; align-items: center; justify-content: center; z-index: 500; padding: 20px; }
   .modal-overlay.open { display: flex; }
@@ -3592,7 +3593,7 @@ window.parent.postMessage({ type: 'ready', view: 'adjudicacion' }, '*');
     <div class="table-scroll">
       <table id="casesTable">
         <thead><tr>
-          <th>RH</th><th>Pack Plan</th><th>Fuente</th><th>Kg Hortifrut</th><th>%</th><th>Kg HFE Berries</th><th>%</th><th>Kg total</th>
+          <th>RH</th><th>Fuente</th><th>Kg Hortifrut</th><th>Kg HFE Berries</th><th>Kg total</th>
           <th>Pago total</th><th>Costo solo</th>
           <th>$/kg HFE Berries</th><th>$/kg Hortifrut (compartido)</th><th>Diferencia total</th><th>$/kg si todo fuera Chao</th><th>Kg libres</th>
         </tr></thead>
@@ -3626,22 +3627,22 @@ window.parent.postMessage({ type: 'ready', view: 'adjudicacion' }, '*');
 // con quitar este archivo y el botón que enlaza a él.
 // =====================================================================
 const CASOS = [
-  {"rh": "RH-0153", "pack_plan": 28, "hortifrut_kg": 8400.0, "hfe_kg": 3600.0, "total_kg": 12000.0, "pagado_hortifrut": 1321.6, "pagado_hfe": 566.4, "pago_total": 1888.0, "fuente": "real", "costo_solo": 1561.6, "diferencia": -240.0, "usd_kg_hfe": 0.1573, "usd_kg_hortifrut": 0.1573, "usd_kg_solo": 0.1301},
-  {"rh": "RH-0190", "pack_plan": 29, "hortifrut_kg": 11992.5, "hfe_kg": 6000.0, "total_kg": 17992.5, "pagado_hortifrut": 901.58, "pagado_hfe": 903.83, "pago_total": 1805.41, "fuente": "real", "costo_solo": 1561.6, "diferencia": -660.02, "usd_kg_hfe": 0.1506, "usd_kg_hortifrut": 0.0752, "usd_kg_solo": 0.0868},
-  {"rh": "RH-0265", "pack_plan": 30, "hortifrut_kg": 5985.0, "hfe_kg": 6000.0, "total_kg": 11985.0, "pagado_hortifrut": 901.57, "pagado_hfe": 903.83, "pago_total": 1805.4, "fuente": "real", "costo_solo": 1561.6, "diferencia": -660.03, "usd_kg_hfe": 0.1506, "usd_kg_hortifrut": 0.1506, "usd_kg_solo": 0.1303},
-  {"rh": "RH-0542", "pack_plan": 34, "hortifrut_kg": 18115.2, "hfe_kg": 2664.0, "total_kg": 20779.2, "pagado_hortifrut": 1627.29, "pagado_hfe": 239.31, "pago_total": 1866.6, "fuente": "real", "costo_solo": 1561.6, "diferencia": 65.69, "usd_kg_hfe": 0.0898, "usd_kg_hortifrut": 0.0898, "usd_kg_solo": 0.0752},
-  {"rh": "RH-0598", "pack_plan": 35, "hortifrut_kg": 18115.2, "hfe_kg": 2664.0, "total_kg": 20779.2, "pagado_hortifrut": 1701.75, "pagado_hfe": 250.25, "pago_total": 1952.0, "fuente": "real", "costo_solo": 1561.6, "diferencia": 140.15, "usd_kg_hfe": 0.0939, "usd_kg_hortifrut": 0.0939, "usd_kg_solo": 0.0752},
-  {"rh": "RH-0601", "pack_plan": 35, "hortifrut_kg": 17049.6, "hfe_kg": 14688.0, "total_kg": 31737.6, "pagado_hortifrut": 776.67, "pagado_hfe": 669.1, "pago_total": 1445.77, "fuente": "estimado", "costo_solo": 1561.6, "diferencia": -784.93, "usd_kg_hfe": 0.0456, "usd_kg_hortifrut": 0.0456, "usd_kg_solo": 0.0492},
-  {"rh": "RH-0605", "pack_plan": 35, "hortifrut_kg": 6336.0, "hfe_kg": 3726.0, "total_kg": 10062.0, "pagado_hortifrut": 1175.39, "pagado_hfe": 691.21, "pago_total": 1866.6, "fuente": "real", "costo_solo": 1561.6, "diferencia": -386.21, "usd_kg_hfe": 0.1855, "usd_kg_hortifrut": 0.1855, "usd_kg_solo": 0.1552},
-  {"rh": "RH-0672", "pack_plan": 36, "hortifrut_kg": 14644.8, "hfe_kg": 5328.0, "total_kg": 19972.8, "pagado_hortifrut": 1366.4, "pagado_hfe": 585.6, "pago_total": 1952.0, "fuente": "real", "costo_solo": 1561.6, "diferencia": -195.2, "usd_kg_hfe": 0.1099, "usd_kg_hortifrut": 0.0933, "usd_kg_solo": 0.0782},
-  {"rh": "RH-0665", "pack_plan": 36, "hortifrut_kg": 5760.0, "hfe_kg": 3726.0, "total_kg": 9486.0, "pagado_hortifrut": 1185.28, "pagado_hfe": 766.72, "pago_total": 1952.0, "fuente": "real", "costo_solo": 1561.6, "diferencia": -376.32, "usd_kg_hfe": 0.2058, "usd_kg_hortifrut": 0.2058, "usd_kg_solo": 0.1646},
-  {"rh": "RH-0752", "pack_plan": 37, "hortifrut_kg": 11721.6, "hfe_kg": 3726.0, "total_kg": 15447.6, "pagado_hortifrut": 1475.7, "pagado_hfe": 476.3, "pago_total": 1952.0, "fuente": "real", "costo_solo": 1561.6, "diferencia": -85.9, "usd_kg_hfe": 0.1278, "usd_kg_hortifrut": 0.1259, "usd_kg_solo": 0.1011},
-  {"rh": "RH-0826", "pack_plan": 38, "hortifrut_kg": 12672.0, "hfe_kg": 3726.0, "total_kg": 16398.0, "pagado_hortifrut": 1545.55, "pagado_hfe": 454.45, "pago_total": 2000.0, "fuente": "estimado", "costo_solo": 1561.6, "diferencia": -16.05, "usd_kg_hfe": 0.122, "usd_kg_hortifrut": 0.122, "usd_kg_solo": 0.0952},
-  {"rh": "RH-0833", "pack_plan": 38, "hortifrut_kg": 13030.56, "hfe_kg": 1409.44, "total_kg": 14440.0, "pagado_hortifrut": 1804.79, "pagado_hfe": 195.21, "pago_total": 2000.0, "fuente": "estimado", "costo_solo": 1561.6, "diferencia": 243.19, "usd_kg_hfe": 0.1385, "usd_kg_hortifrut": 0.1385, "usd_kg_solo": 0.1081},
-  {"rh": "RH-0843", "pack_plan": 39, "hortifrut_kg": 5280.0, "hfe_kg": 13302.432, "total_kg": 18582.4, "pagado_hortifrut": 568.28, "pagado_hfe": 1431.72, "pago_total": 2000.0, "fuente": "estimado", "costo_solo": 1561.6, "diferencia": -993.32, "usd_kg_hfe": 0.1076, "usd_kg_hortifrut": 0.1076, "usd_kg_solo": 0.084},
-  {"rh": "RH-0844", "pack_plan": 39, "hortifrut_kg": 19180.8, "hfe_kg": 1776.0, "total_kg": 20956.8, "pagado_hortifrut": 1830.51, "pagado_hfe": 169.49, "pago_total": 2000.0, "fuente": "estimado", "costo_solo": 1561.6, "diferencia": 268.91, "usd_kg_hfe": 0.0954, "usd_kg_hortifrut": 0.0954, "usd_kg_solo": 0.0745},
-  {"rh": "RH-0898", "pack_plan": 40, "hortifrut_kg": 6480.0, "hfe_kg": 720.0, "total_kg": 7200.0, "pagado_hortifrut": 1800.0, "pagado_hfe": 200.0, "pago_total": 2000.0, "fuente": "estimado", "costo_solo": 1561.6, "diferencia": 238.4, "usd_kg_hfe": 0.2778, "usd_kg_hortifrut": 0.2778, "usd_kg_solo": 0.2169},
-  {"rh": "RH-0906", "pack_plan": 40, "hortifrut_kg": 10656.0, "hfe_kg": 8880.0, "total_kg": 19536.0, "pagado_hortifrut": 1090.91, "pagado_hfe": 909.09, "pago_total": 2000.0, "fuente": "estimado", "costo_solo": 1561.6, "diferencia": -470.69, "usd_kg_hfe": 0.1024, "usd_kg_hortifrut": 0.1024, "usd_kg_solo": 0.0799},
+  {"rh": "RH-0153", "pack_plan": 28, "hortifrut_kg": 8400.0, "hfe_kg": 3600.0, "total_kg": 12000.0, "pagado_hortifrut": 1321.6, "pagado_hfe": 566.4, "pago_total": 1888.0, "fuente": "real", "costo_solo": 1475.0, "diferencia": -153.4, "usd_kg_hfe": 0.1573, "usd_kg_hortifrut": 0.1573, "usd_kg_solo": 0.1229},
+  {"rh": "RH-0190", "pack_plan": 29, "hortifrut_kg": 11992.5, "hfe_kg": 6000.0, "total_kg": 17992.5, "pagado_hortifrut": 901.58, "pagado_hfe": 903.83, "pago_total": 1805.41, "fuente": "real", "costo_solo": 1475.0, "diferencia": -573.42, "usd_kg_hfe": 0.1506, "usd_kg_hortifrut": 0.0752, "usd_kg_solo": 0.082},
+  {"rh": "RH-0265", "pack_plan": 30, "hortifrut_kg": 5985.0, "hfe_kg": 6000.0, "total_kg": 11985.0, "pagado_hortifrut": 901.57, "pagado_hfe": 903.83, "pago_total": 1805.4, "fuente": "real", "costo_solo": 1475.0, "diferencia": -573.43, "usd_kg_hfe": 0.1506, "usd_kg_hortifrut": 0.1506, "usd_kg_solo": 0.1231},
+  {"rh": "RH-0542", "pack_plan": 34, "hortifrut_kg": 18115.2, "hfe_kg": 2664.0, "total_kg": 20779.2, "pagado_hortifrut": 1627.29, "pagado_hfe": 239.31, "pago_total": 1866.6, "fuente": "real", "costo_solo": 1475.0, "diferencia": 152.29, "usd_kg_hfe": 0.0898, "usd_kg_hortifrut": 0.0898, "usd_kg_solo": 0.071},
+  {"rh": "RH-0598", "pack_plan": 35, "hortifrut_kg": 18115.2, "hfe_kg": 2664.0, "total_kg": 20779.2, "pagado_hortifrut": 1701.75, "pagado_hfe": 250.25, "pago_total": 1952.0, "fuente": "real", "costo_solo": 1475.0, "diferencia": 226.75, "usd_kg_hfe": 0.0939, "usd_kg_hortifrut": 0.0939, "usd_kg_solo": 0.071},
+  {"rh": "RH-0601", "pack_plan": 35, "hortifrut_kg": 17049.6, "hfe_kg": 14688.0, "total_kg": 31737.6, "pagado_hortifrut": 776.67, "pagado_hfe": 669.1, "pago_total": 1445.77, "fuente": "estimado", "costo_solo": 1475.0, "diferencia": -698.33, "usd_kg_hfe": 0.0456, "usd_kg_hortifrut": 0.0456, "usd_kg_solo": 0.0465},
+  {"rh": "RH-0605", "pack_plan": 35, "hortifrut_kg": 6336.0, "hfe_kg": 3726.0, "total_kg": 10062.0, "pagado_hortifrut": 1175.39, "pagado_hfe": 691.21, "pago_total": 1866.6, "fuente": "real", "costo_solo": 1475.0, "diferencia": -299.61, "usd_kg_hfe": 0.1855, "usd_kg_hortifrut": 0.1855, "usd_kg_solo": 0.1466},
+  {"rh": "RH-0672", "pack_plan": 36, "hortifrut_kg": 14644.8, "hfe_kg": 5328.0, "total_kg": 19972.8, "pagado_hortifrut": 1366.4, "pagado_hfe": 585.6, "pago_total": 1952.0, "fuente": "real", "costo_solo": 1475.0, "diferencia": -108.6, "usd_kg_hfe": 0.1099, "usd_kg_hortifrut": 0.0933, "usd_kg_solo": 0.0739},
+  {"rh": "RH-0665", "pack_plan": 36, "hortifrut_kg": 5760.0, "hfe_kg": 3726.0, "total_kg": 9486.0, "pagado_hortifrut": 1185.28, "pagado_hfe": 766.72, "pago_total": 1952.0, "fuente": "real", "costo_solo": 1475.0, "diferencia": -289.72, "usd_kg_hfe": 0.2058, "usd_kg_hortifrut": 0.2058, "usd_kg_solo": 0.1555},
+  {"rh": "RH-0752", "pack_plan": 37, "hortifrut_kg": 11721.6, "hfe_kg": 3726.0, "total_kg": 15447.6, "pagado_hortifrut": 1475.7, "pagado_hfe": 476.3, "pago_total": 1952.0, "fuente": "real", "costo_solo": 1475.0, "diferencia": 0.7, "usd_kg_hfe": 0.1278, "usd_kg_hortifrut": 0.1259, "usd_kg_solo": 0.0955},
+  {"rh": "RH-0826", "pack_plan": 38, "hortifrut_kg": 12672.0, "hfe_kg": 3726.0, "total_kg": 16398.0, "pagado_hortifrut": 1545.55, "pagado_hfe": 454.45, "pago_total": 2000.0, "fuente": "estimado", "costo_solo": 1475.0, "diferencia": 70.55, "usd_kg_hfe": 0.122, "usd_kg_hortifrut": 0.122, "usd_kg_solo": 0.0899},
+  {"rh": "RH-0833", "pack_plan": 38, "hortifrut_kg": 13030.56, "hfe_kg": 1409.44, "total_kg": 14440.0, "pagado_hortifrut": 1804.79, "pagado_hfe": 195.21, "pago_total": 2000.0, "fuente": "estimado", "costo_solo": 1475.0, "diferencia": 329.79, "usd_kg_hfe": 0.1385, "usd_kg_hortifrut": 0.1385, "usd_kg_solo": 0.1021},
+  {"rh": "RH-0843", "pack_plan": 39, "hortifrut_kg": 5280.0, "hfe_kg": 13302.432, "total_kg": 18582.4, "pagado_hortifrut": 568.28, "pagado_hfe": 1431.72, "pago_total": 2000.0, "fuente": "estimado", "costo_solo": 1475.0, "diferencia": -906.72, "usd_kg_hfe": 0.1076, "usd_kg_hortifrut": 0.1076, "usd_kg_solo": 0.0794},
+  {"rh": "RH-0844", "pack_plan": 39, "hortifrut_kg": 19180.8, "hfe_kg": 1776.0, "total_kg": 20956.8, "pagado_hortifrut": 1830.51, "pagado_hfe": 169.49, "pago_total": 2000.0, "fuente": "estimado", "costo_solo": 1475.0, "diferencia": 355.51, "usd_kg_hfe": 0.0954, "usd_kg_hortifrut": 0.0954, "usd_kg_solo": 0.0704},
+  {"rh": "RH-0898", "pack_plan": 40, "hortifrut_kg": 6480.0, "hfe_kg": 720.0, "total_kg": 7200.0, "pagado_hortifrut": 1800.0, "pagado_hfe": 200.0, "pago_total": 2000.0, "fuente": "estimado", "costo_solo": 1475.0, "diferencia": 325.0, "usd_kg_hfe": 0.2778, "usd_kg_hortifrut": 0.2778, "usd_kg_solo": 0.2049},
+  {"rh": "RH-0906", "pack_plan": 40, "hortifrut_kg": 10656.0, "hfe_kg": 8880.0, "total_kg": 19536.0, "pagado_hortifrut": 1090.91, "pagado_hfe": 909.09, "pago_total": 2000.0, "fuente": "estimado", "costo_solo": 1475.0, "diferencia": -384.09, "usd_kg_hfe": 0.1024, "usd_kg_hortifrut": 0.1024, "usd_kg_solo": 0.0755},
 ];
 
 const ERRORES = [];
@@ -3655,9 +3656,9 @@ function kgLibres(c) { const v = REF_KG - c.total_kg; return Math.abs(v) < 0.5 ?
 // Desde PP38 en adelante, todo caso que no sea "real" (estimado o proyectado) usa la tarifa
 // de consolidado ACTUAL de $2,000 (pago total), no la tarifa histórica de $1,445.77 (esa ya
 // quedó vieja). RH-0601 (PP35, estimado) sigue con la tarifa histórica porque es anterior a
-// la semana 38. "Costo solo" (ruta Chao individual, $1,561.60) no cambia: es la referencia
+// la semana 38. "Costo solo" (ruta Chao individual, $1,475.00) no cambia: es la referencia
 // de lo que costaría sacar un contenedor propio, independiente de la tarifa del consolidado.
-const COSTO_SOLO = 1561.6;
+const COSTO_SOLO = 1475.0;
 const TARIFA_CONSOLIDADO_ACTUAL = 2000.0;
 
 // Proyección: no hay forecast real de consolidados a futuro, así que se proyectan 2
@@ -3727,24 +3728,26 @@ document.getElementById('kpiStrip').innerHTML = [
   kpiCard('Espacio libre acumulado', fmtNum(totalKgLibres, 0) + ' kg', '', `vs. ${fmtNum(REF_KG, 0)} kg (promedio histórico por contenedor)`),
 ].join('');
 
-// ---- Tabla ----
+// ---- Tabla (agrupada por Pack Plan) ----
 const FUENTE_TAG = { real: ['tag-real', 'Real'], estimado: ['tag-est', 'Estimado'], 'Proyectado SOP': ['tag-proy', 'Proyectado SOP'] };
+function kgPct(kg, total) { return `${Math.round(kg)}(%${Math.round(kg / total * 100)})`; }
 const tbody = document.querySelector('#casesTable tbody');
-tbody.innerHTML = TABLE_ROWS.map(c => {
+let html = '';
+let lastPP = null;
+for (const c of TABLE_ROWS) {
+  if (c.pack_plan !== lastPP) {
+    html += `<tr class="pp-group"><td colspan="12">Pack Plan ${c.pack_plan}</td></tr>`;
+    lastPP = c.pack_plan;
+  }
   const [tagCls, tagLabel] = FUENTE_TAG[c.fuente];
-  const pctHortifrut = c.hortifrut_kg / c.total_kg * 100;
-  const pctHfe = c.hfe_kg / c.total_kg * 100;
   const kgLib = kgLibres(c);
   const difTotal = diferenciaTotal(c);
-  return `
+  html += `
   <tr>
     <td style="font-family:var(--mono);font-weight:700">${c.rh || '—'}</td>
-    <td>PP${c.pack_plan}</td>
     <td><span class="tag ${tagCls}">${tagLabel}</span></td>
-    <td>${fmtNum(c.hortifrut_kg, 0)}</td>
-    <td>${fmtNum(pctHortifrut, 1)}%</td>
-    <td>${fmtNum(c.hfe_kg, 0)}</td>
-    <td>${fmtNum(pctHfe, 1)}%</td>
+    <td>${kgPct(c.hortifrut_kg, c.total_kg)}</td>
+    <td>${kgPct(c.hfe_kg, c.total_kg)}</td>
     <td>${fmtNum(c.total_kg, 0)}</td>
     <td style="font-weight:700">${fmtUSD(c.pago_total)}</td>
     <td>${fmtUSD(c.costo_solo)}</td>
@@ -3755,7 +3758,8 @@ tbody.innerHTML = TABLE_ROWS.map(c => {
     <td style="color:${kgLib < 0 ? 'var(--red)' : 'var(--text2)'}">${kgLib > 0 ? '+' : ''}${fmtNum(kgLib, 0)}</td>
   </tr>
 `;
-}).join('');
+}
+tbody.innerHTML = html;
 
 // ---- Modal de errores ----
 document.getElementById('errList').innerHTML = ERRORES.map(e => `
