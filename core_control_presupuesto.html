@@ -3468,7 +3468,7 @@ window.parent.postMessage({ type: 'ready', view: 'adjudicacion' }, '*');
 </html>
 </script>
 <script type="text/html" id="tpl-consolidados"><!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -3546,7 +3546,7 @@ window.parent.postMessage({ type: 'ready', view: 'adjudicacion' }, '*');
   .modal-close { margin-top: 16px; width: 100%; padding: 10px; border-radius: 10px; border: none; background: var(--blue); color: #fff; font-weight: 700; font-size: 12.5px; cursor: pointer; }
 </style>
 </head>
-<body data-theme="dark">
+<body>
 
 <div class="header">
   <div class="header-left">
@@ -3715,13 +3715,13 @@ document.getElementById('errModalClose').addEventListener('click', () => errModa
 errModal.addEventListener('click', (e) => { if (e.target === errModal) errModal.classList.remove('open'); });
 
 // ---- Gráfico de diferencia por Pack Plan ----
-const labels = [...CASOS.map(c => 'PP' + c.pack_plan), ...proyeccion.map(p => 'PP' + p.pack_plan)];
+const labels = [...CASOS.map(c => 'PP' + c.pack_plan + ' · ' + c.rh), ...proyeccion.map(p => 'PP' + p.pack_plan)];
 const dataHist = CASOS.map(c => c.diferencia);
 const dataProy = proyeccion.map(p => p.diferencia_total);
 const dataDiff = [...dataHist, ...new Array(proyeccion.length).fill(null)];
 const dataDiffProy = [...new Array(CASOS.length).fill(null), ...dataProy];
 
-const isDark = document.body.getAttribute('data-theme') === 'dark';
+const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
 const red = isDark ? '#FF453A' : '#FF3B30';
 const green = isDark ? '#30D158' : '#34C759';
 const grid = isDark ? 'rgba(255,255,255,.07)' : 'rgba(16,17,20,.07)';
@@ -3742,7 +3742,7 @@ new Chart(document.getElementById('chartDiff'), {
     responsive: true, maintainAspectRatio: false,
     plugins: { legend: { labels: { color: tickColor, font: { family: 'Inter', size: 11 } } }, tooltip: { callbacks: { label: (ctx) => fmtUSD(ctx.raw) } } },
     scales: {
-      x: { grid: { display: false }, ticks: { color: tickColor, font: { size: 10 } } },
+      x: { grid: { display: false }, ticks: { color: tickColor, font: { size: 9 }, maxRotation: 60, minRotation: 60 } },
       y: { grid: { color: grid }, ticks: { color: tickColor, callback: (v) => fmtUSD(v, { decimals: 0 }) } },
     },
   },
