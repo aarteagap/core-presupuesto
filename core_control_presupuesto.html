@@ -3700,7 +3700,7 @@ document.getElementById('tableSub').textContent = `${CASOS.length} casos histór
 function kpiCard(label, value, cls, sub) {
   return `<div class="kpi-card"><div class="kpi-label">${label}</div><div class="kpi-value ${cls || ''}">${value}</div>${sub ? `<div class="kpi-sub">${sub}</div>` : ''}</div>`;
 }
-let includeProy = false;
+let includeProy = true;
 function renderKpis() {
   const totalContenedores = CASOS.length + (includeProy ? PROYECCION.length : 0);
   document.getElementById('kpiStrip').innerHTML = [
