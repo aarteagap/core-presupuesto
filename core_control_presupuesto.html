@@ -3513,7 +3513,9 @@ window.parent.postMessage({ type: 'ready', view: 'adjudicacion' }, '*');
   .kpi-card-wide { grid-column: span 2; }
   .kpi-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
   .kpi-head .kpi-label { margin-bottom: 0; }
+  .kpi-badges { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
   .kpi-badge { font-size: 12px; font-weight: 700; padding: 5px 12px; border-radius: 999px; background: rgba(48,209,88,.16); color: var(--green); white-space: nowrap; }
+  .kpi-badge-red { background: rgba(255,69,58,.14); color: var(--red); }
   @media (max-width: 640px) { .kpi-card-wide { grid-column: span 1; } .kpi-head { flex-wrap: wrap; } }
   .kpi-label { font-size: 10.5px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 6px; }
   .kpi-value { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
@@ -3710,7 +3712,7 @@ function renderKpis() {
     kpiCard('Diferencia histórica total', fmtUSD(totalDiferenciaReal, { decimals: 0 }), totalDiferenciaReal > 0 ? 'pos' : 'neg', `${CASOS.length} contenedores · PP${ppMin}–PP${ppMaxHist} · ${totalDiferenciaReal > 0 ? 'sobrecosto' : 'ahorro'} neto`),
     kpiCard('Diferencia proyectada', fmtUSD(totalDiferenciaProy, { decimals: 0 }), totalDiferenciaProy > 0 ? 'pos' : 'neg', `PP${PROY_PP_INICIO}–PP52 + PP1–PP${proyPpLabel(PROY_PP_FIN)} · ${PROY_FCL_SEMANA} FCL/semana, tarifa $2,000`),
     kpiCard('Promedio por contenedor', fmtUSD(AVG_DIFF, { decimals: 0 }), AVG_DIFF > 0 ? 'pos' : 'neg', `${nReal} con monto real · ${nEst} estimados por peso`),
-    `<div class="kpi-card kpi-card-wide"><div class="kpi-head"><div class="kpi-label">Contenedores totales</div><span class="kpi-badge">Contenedores campaña 2526: 5 FCL</span></div><div class="kpi-value">${totalContenedores}</div><div class="kpi-sub">${CASOS.length} históricos${includeProy ? ' + ' + PROYECCION.length + ' proyectados' : ''}</div><button type="button" class="mini-btn" id="toggleProyBtn">${includeProy ? '− Excluir proyección' : '+ Incluir proyección'}</button></div>`,
+    `<div class="kpi-card kpi-card-wide"><div class="kpi-head"><div class="kpi-label">Contenedores totales</div><div class="kpi-badges"><span class="kpi-badge">Contenedores campaña 2526: 5 FCL</span><span class="kpi-badge kpi-badge-red">Diferencia: ${totalContenedores - 5}</span></div></div><div class="kpi-value">${totalContenedores}</div><div class="kpi-sub">${CASOS.length} históricos${includeProy ? ' + ' + PROYECCION.length + ' proyectados' : ''}</div><button type="button" class="mini-btn" id="toggleProyBtn">${includeProy ? '− Excluir proyección' : '+ Incluir proyección'}</button></div>`,
   ].join('');
   document.getElementById('toggleProyBtn').addEventListener('click', () => { includeProy = !includeProy; renderKpis(); });
 }
