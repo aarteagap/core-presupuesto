@@ -3767,7 +3767,10 @@ for (const [pp, rows] of groupsByPP) {
     usd_kg_solo: sumCostoSolo / sumTotal,
   };
   if (summary.fuente === 'mixto') FUENTE_TAG.mixto = ['tag-mixto', 'Mixto'];
-  const summaryDifTotal = (summary.usd_kg_hortifrut - summary.usd_kg_solo) * summary.hortifrut_kg;
+  // Suma la diferencia total real de cada RH (no se recalcula desde las tasas agregadas:
+  // usd_kg_hortifrut/usd_kg_solo no son lineales, así que promediarlas y multiplicar por el
+  // total de kg del grupo da un número distinto —y menos preciso— que sumar cada caso).
+  const summaryDifTotal = rows.reduce((a, c) => a + diferenciaTotal(c), 0);
   const ppLabel = rows[0].pp_label !== undefined ? rows[0].pp_label : pp;
   html += `<tr class="pp-group" data-pp="${pp}" data-pp-label="${ppLabel}"><td class="pp-arrow">▸ Pack Plan ${ppLabel}</td>${rowCells(summary, summaryDifTotal).replace(/^\s*<td[^>]*>[^<]*<\/td>/, '')}</tr>`;
   for (const c of rows) {
