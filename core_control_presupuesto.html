@@ -3649,7 +3649,6 @@ const PROY_PP_INICIO = 41;
 const PROY_PP_FIN = 56; // PP52 (cierre de temporada) + PP1-4 de la temporada siguiente
 const PROY_FCL_SEMANA = 2;
 function proyPpLabel(pp) { return pp > 52 ? pp - 52 : pp; }
-function proyPpSuffix(pp) { return pp > 52 ? ' (temporada sig.)' : ''; }
 const PROY_HORTIFRUT_KG = CASOS.reduce((a, c) => a + c.hortifrut_kg, 0) / CASOS.length;
 const PROY_HFE_KG = CASOS.reduce((a, c) => a + c.hfe_kg, 0) / CASOS.length;
 const PROY_TOTAL_KG = PROY_HORTIFRUT_KG + PROY_HFE_KG;
@@ -3662,7 +3661,7 @@ const PROYECCION = [];
 for (let pp = PROY_PP_INICIO; pp <= PROY_PP_FIN; pp++) {
   for (let i = 0; i < PROY_FCL_SEMANA; i++) {
     PROYECCION.push({
-      rh: null, pack_plan: pp, pp_label: proyPpLabel(pp) + proyPpSuffix(pp), fuente: 'Proyectado SOP',
+      rh: null, pack_plan: pp, pp_label: proyPpLabel(pp), fuente: 'Proyectado SOP',
       hortifrut_kg: PROY_HORTIFRUT_KG, hfe_kg: PROY_HFE_KG, total_kg: PROY_TOTAL_KG,
       pagado_hortifrut: PROY_PAGADO_HORTIFRUT, pagado_hfe: PROY_PAGADO_HFE, pago_total: TARIFA_CONSOLIDADO_ACTUAL,
       costo_solo: COSTO_SOLO, diferencia: PROY_DIFERENCIA,
@@ -3704,7 +3703,7 @@ function renderKpis() {
   const totalContenedores = CASOS.length + (includeProy ? PROYECCION.length : 0);
   document.getElementById('kpiStrip').innerHTML = [
     kpiCard('Diferencia histórica total', fmtUSD(totalDiferenciaReal, { decimals: 0 }), totalDiferenciaReal > 0 ? 'pos' : 'neg', `${CASOS.length} contenedores · PP${ppMin}–PP${ppMaxHist} · ${totalDiferenciaReal > 0 ? 'sobrecosto' : 'ahorro'} neto`),
-    kpiCard('Diferencia proyectada', fmtUSD(totalDiferenciaProy, { decimals: 0 }), totalDiferenciaProy > 0 ? 'pos' : 'neg', `PP${PROY_PP_INICIO}–PP52 + PP1–PP${proyPpLabel(PROY_PP_FIN)} (temp. sig.) · ${PROY_FCL_SEMANA} FCL/semana, tarifa $2,000`),
+    kpiCard('Diferencia proyectada', fmtUSD(totalDiferenciaProy, { decimals: 0 }), totalDiferenciaProy > 0 ? 'pos' : 'neg', `PP${PROY_PP_INICIO}–PP52 + PP1–PP${proyPpLabel(PROY_PP_FIN)} · ${PROY_FCL_SEMANA} FCL/semana, tarifa $2,000`),
     kpiCard('Promedio por contenedor', fmtUSD(AVG_DIFF, { decimals: 0 }), AVG_DIFF > 0 ? 'pos' : 'neg', `${nReal} con monto real · ${nEst} estimados por peso`),
     `<div class="kpi-card"><div class="kpi-label">Contenedores totales</div><div class="kpi-value">${totalContenedores}</div><div class="kpi-sub">${CASOS.length} históricos${includeProy ? ' + ' + PROYECCION.length + ' proyectados' : ''}</div><button type="button" class="mini-btn" id="toggleProyBtn">${includeProy ? '− Excluir proyección' : '+ Incluir proyección'}</button></div>`,
   ].join('');
