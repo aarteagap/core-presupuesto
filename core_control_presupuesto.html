@@ -3507,8 +3507,6 @@ window.parent.postMessage({ type: 'ready', view: 'adjudicacion' }, '*');
   .alert-btn .count { background: var(--red); color: #fff; border-radius: 999px; min-width: 16px; height: 16px; font-size: 10px; display: inline-flex; align-items: center; justify-content: center; padding: 0 4px; }
 
   .main { max-width: 1180px; margin: 0 auto; padding: 20px; display: flex; flex-direction: column; gap: 18px; }
-  .intro { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; font-size: 12.5px; color: var(--text2); }
-  .intro b { color: var(--text); }
 
   .kpi-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
   .kpi-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; }
@@ -3570,15 +3568,6 @@ window.parent.postMessage({ type: 'ready', view: 'adjudicacion' }, '*');
 </div>
 
 <div class="main">
-  <div class="intro">
-    Cada caso "RH" es un mismo contenedor Marítimo (proveedor LIP) compartido entre <b>Hortifrut Perú</b> (Packing Chao) y
-    <b>HFE Berries</b> (Packing Olmos) para que HFE Berries pueda completar su fruta, ya que no llena un contenedor solo
-    rápido. Esta vista compara lo que Hortifrut realmente pagó por su parte del contenedor compartido vs. lo que le habría
-    costado sacar un contenedor propio (ruta Chao, mismo proveedor, sin pasar por Olmos). Diferencia positiva = Hortifrut
-    pagó de más por ayudar a HFE Berries; negativa = pagó menos. Datos: hoja <b>HORIZON_FORECAST</b> del Horizon (Mode =
-    Marítimo, Status = Confirmado) + montos reales de liquidaciones donde existen.
-  </div>
-
   <div class="kpi-strip" id="kpiStrip"></div>
 
   <div class="card">
@@ -3624,17 +3613,17 @@ const CASOS = [
   {"rh": "RH-0265", "pack_plan": 30, "hortifrut_kg": 5985.0, "hfe_kg": 6000.0, "total_kg": 11985.0, "pagado_hortifrut": 901.57, "pagado_hfe": 903.83, "pago_total": 1805.4, "fuente": "real", "costo_solo": 1475.0, "diferencia": -573.43, "usd_kg_hfe": 0.1506, "usd_kg_hortifrut": 0.1506, "usd_kg_solo": 0.1231},
   {"rh": "RH-0542", "pack_plan": 34, "hortifrut_kg": 18115.2, "hfe_kg": 2664.0, "total_kg": 20779.2, "pagado_hortifrut": 1627.29, "pagado_hfe": 239.31, "pago_total": 1866.6, "fuente": "real", "costo_solo": 1475.0, "diferencia": 152.29, "usd_kg_hfe": 0.0898, "usd_kg_hortifrut": 0.0898, "usd_kg_solo": 0.071},
   {"rh": "RH-0598", "pack_plan": 35, "hortifrut_kg": 18115.2, "hfe_kg": 2664.0, "total_kg": 20779.2, "pagado_hortifrut": 1701.75, "pagado_hfe": 250.25, "pago_total": 1952.0, "fuente": "real", "costo_solo": 1475.0, "diferencia": 226.75, "usd_kg_hfe": 0.0939, "usd_kg_hortifrut": 0.0939, "usd_kg_solo": 0.071},
-  {"rh": "RH-0601", "pack_plan": 35, "hortifrut_kg": 17049.6, "hfe_kg": 14688.0, "total_kg": 31737.6, "pagado_hortifrut": 1048.62, "pagado_hfe": 903.38, "pago_total": 1952.0, "fuente": "estimado", "costo_solo": 1475.0, "diferencia": -426.38, "usd_kg_hfe": 0.0615, "usd_kg_hortifrut": 0.0615, "usd_kg_solo": 0.0465},
+  {"rh": "RH-0601", "pack_plan": 35, "hortifrut_kg": 17049.6, "hfe_kg": 14688.0, "total_kg": 31737.6, "pagado_hortifrut": 1048.62, "pagado_hfe": 903.38, "pago_total": 1952.0, "fuente": "real", "costo_solo": 1475.0, "diferencia": -426.38, "usd_kg_hfe": 0.0615, "usd_kg_hortifrut": 0.0615, "usd_kg_solo": 0.0465},
   {"rh": "RH-0605", "pack_plan": 35, "hortifrut_kg": 6336.0, "hfe_kg": 3726.0, "total_kg": 10062.0, "pagado_hortifrut": 1175.39, "pagado_hfe": 691.21, "pago_total": 1866.6, "fuente": "real", "costo_solo": 1475.0, "diferencia": -299.61, "usd_kg_hfe": 0.1855, "usd_kg_hortifrut": 0.1855, "usd_kg_solo": 0.1466},
   {"rh": "RH-0672", "pack_plan": 36, "hortifrut_kg": 14644.8, "hfe_kg": 5328.0, "total_kg": 19972.8, "pagado_hortifrut": 1366.4, "pagado_hfe": 585.6, "pago_total": 1952.0, "fuente": "real", "costo_solo": 1475.0, "diferencia": -108.6, "usd_kg_hfe": 0.1099, "usd_kg_hortifrut": 0.0933, "usd_kg_solo": 0.0739},
   {"rh": "RH-0665", "pack_plan": 36, "hortifrut_kg": 5760.0, "hfe_kg": 3726.0, "total_kg": 9486.0, "pagado_hortifrut": 1185.28, "pagado_hfe": 766.72, "pago_total": 1952.0, "fuente": "real", "costo_solo": 1475.0, "diferencia": -289.72, "usd_kg_hfe": 0.2058, "usd_kg_hortifrut": 0.2058, "usd_kg_solo": 0.1555},
   {"rh": "RH-0752", "pack_plan": 37, "hortifrut_kg": 11721.6, "hfe_kg": 3726.0, "total_kg": 15447.6, "pagado_hortifrut": 1475.7, "pagado_hfe": 476.3, "pago_total": 1952.0, "fuente": "real", "costo_solo": 1475.0, "diferencia": 0.7, "usd_kg_hfe": 0.1278, "usd_kg_hortifrut": 0.1259, "usd_kg_solo": 0.0955},
-  {"rh": "RH-0826", "pack_plan": 38, "hortifrut_kg": 12672.0, "hfe_kg": 3726.0, "total_kg": 16398.0, "pagado_hortifrut": 1545.55, "pagado_hfe": 454.45, "pago_total": 2000.0, "fuente": "estimado", "costo_solo": 1475.0, "diferencia": 70.55, "usd_kg_hfe": 0.122, "usd_kg_hortifrut": 0.122, "usd_kg_solo": 0.0899},
-  {"rh": "RH-0833", "pack_plan": 38, "hortifrut_kg": 13030.56, "hfe_kg": 1409.44, "total_kg": 14440.0, "pagado_hortifrut": 1804.79, "pagado_hfe": 195.21, "pago_total": 2000.0, "fuente": "estimado", "costo_solo": 1475.0, "diferencia": 329.79, "usd_kg_hfe": 0.1385, "usd_kg_hortifrut": 0.1385, "usd_kg_solo": 0.1021},
-  {"rh": "RH-0843", "pack_plan": 39, "hortifrut_kg": 5280.0, "hfe_kg": 13302.432, "total_kg": 18582.4, "pagado_hortifrut": 568.28, "pagado_hfe": 1431.72, "pago_total": 2000.0, "fuente": "estimado", "costo_solo": 1475.0, "diferencia": -906.72, "usd_kg_hfe": 0.1076, "usd_kg_hortifrut": 0.1076, "usd_kg_solo": 0.0794},
-  {"rh": "RH-0844", "pack_plan": 39, "hortifrut_kg": 19180.8, "hfe_kg": 1776.0, "total_kg": 20956.8, "pagado_hortifrut": 1830.51, "pagado_hfe": 169.49, "pago_total": 2000.0, "fuente": "estimado", "costo_solo": 1475.0, "diferencia": 355.51, "usd_kg_hfe": 0.0954, "usd_kg_hortifrut": 0.0954, "usd_kg_solo": 0.0704},
-  {"rh": "RH-0898", "pack_plan": 40, "hortifrut_kg": 6480.0, "hfe_kg": 720.0, "total_kg": 7200.0, "pagado_hortifrut": 1800.0, "pagado_hfe": 200.0, "pago_total": 2000.0, "fuente": "estimado", "costo_solo": 1475.0, "diferencia": 325.0, "usd_kg_hfe": 0.2778, "usd_kg_hortifrut": 0.2778, "usd_kg_solo": 0.2049},
-  {"rh": "RH-0906", "pack_plan": 40, "hortifrut_kg": 10656.0, "hfe_kg": 8880.0, "total_kg": 19536.0, "pagado_hortifrut": 1090.91, "pagado_hfe": 909.09, "pago_total": 2000.0, "fuente": "estimado", "costo_solo": 1475.0, "diferencia": -384.09, "usd_kg_hfe": 0.1024, "usd_kg_hortifrut": 0.1024, "usd_kg_solo": 0.0755},
+  {"rh": "RH-0826", "pack_plan": 38, "hortifrut_kg": 12672.0, "hfe_kg": 3726.0, "total_kg": 16398.0, "pagado_hortifrut": 1545.55, "pagado_hfe": 454.45, "pago_total": 2000.0, "fuente": "real", "costo_solo": 1475.0, "diferencia": 70.55, "usd_kg_hfe": 0.122, "usd_kg_hortifrut": 0.122, "usd_kg_solo": 0.0899},
+  {"rh": "RH-0833", "pack_plan": 38, "hortifrut_kg": 13030.56, "hfe_kg": 1409.44, "total_kg": 14440.0, "pagado_hortifrut": 1804.79, "pagado_hfe": 195.21, "pago_total": 2000.0, "fuente": "real", "costo_solo": 1475.0, "diferencia": 329.79, "usd_kg_hfe": 0.1385, "usd_kg_hortifrut": 0.1385, "usd_kg_solo": 0.1021},
+  {"rh": "RH-0843", "pack_plan": 39, "hortifrut_kg": 5280.0, "hfe_kg": 13302.432, "total_kg": 18582.4, "pagado_hortifrut": 568.28, "pagado_hfe": 1431.72, "pago_total": 2000.0, "fuente": "real", "costo_solo": 1475.0, "diferencia": -906.72, "usd_kg_hfe": 0.1076, "usd_kg_hortifrut": 0.1076, "usd_kg_solo": 0.0794},
+  {"rh": "RH-0844", "pack_plan": 39, "hortifrut_kg": 19180.8, "hfe_kg": 1776.0, "total_kg": 20956.8, "pagado_hortifrut": 1830.51, "pagado_hfe": 169.49, "pago_total": 2000.0, "fuente": "real", "costo_solo": 1475.0, "diferencia": 355.51, "usd_kg_hfe": 0.0954, "usd_kg_hortifrut": 0.0954, "usd_kg_solo": 0.0704},
+  {"rh": "RH-0898", "pack_plan": 40, "hortifrut_kg": 6480.0, "hfe_kg": 720.0, "total_kg": 7200.0, "pagado_hortifrut": 1800.0, "pagado_hfe": 200.0, "pago_total": 2000.0, "fuente": "real", "costo_solo": 1475.0, "diferencia": 325.0, "usd_kg_hfe": 0.2778, "usd_kg_hortifrut": 0.2778, "usd_kg_solo": 0.2049},
+  {"rh": "RH-0906", "pack_plan": 40, "hortifrut_kg": 10656.0, "hfe_kg": 8880.0, "total_kg": 19536.0, "pagado_hortifrut": 1090.91, "pagado_hfe": 909.09, "pago_total": 2000.0, "fuente": "real", "costo_solo": 1475.0, "diferencia": -384.09, "usd_kg_hfe": 0.1024, "usd_kg_hortifrut": 0.1024, "usd_kg_solo": 0.0755},
 ];
 
 const ERRORES = [];
@@ -3650,12 +3639,17 @@ const TARIFA_CONSOLIDADO_ACTUAL = 2000.0;
 
 // Proyección: no hay forecast real de consolidados a futuro, así que se proyectan 2
 // contenedores por semana desde la semana siguiente a la última con datos reales (PP41) hasta
-// la semana 4 de enero del próximo año (PP52), usando la tarifa de consolidado actual
-// ($2,000) y el peso promedio histórico de Hortifrut/HFE Berries por contenedor (de los 16
-// casos reales/estimados de arriba). Es una extrapolación simple a propósito.
+// la semana 4 de enero de la próxima temporada (PP4), usando la tarifa de consolidado actual
+// ($2,000) y el peso promedio histórico de Hortifrut/HFE Berries por contenedor (de los 14
+// casos reales de arriba). Es una extrapolación simple a propósito. Pack Plan da la vuelta a
+// 1 al cerrar la temporada en PP52, así que la proyección sigue PP41..PP52 y luego PP1..PP4
+// de la temporada siguiente (internamente esas 4 últimas semanas se guardan como 53..56 para
+// no chocar con un futuro PP1-4 real, pero se muestran con su número de semana correcto).
 const PROY_PP_INICIO = 41;
-const PROY_PP_FIN = 52; // ~fin de enero 2027, semana 4 de enero
+const PROY_PP_FIN = 56; // PP52 (cierre de temporada) + PP1-4 de la temporada siguiente
 const PROY_FCL_SEMANA = 2;
+function proyPpLabel(pp) { return pp > 52 ? pp - 52 : pp; }
+function proyPpSuffix(pp) { return pp > 52 ? ' (temporada sig.)' : ''; }
 const PROY_HORTIFRUT_KG = CASOS.reduce((a, c) => a + c.hortifrut_kg, 0) / CASOS.length;
 const PROY_HFE_KG = CASOS.reduce((a, c) => a + c.hfe_kg, 0) / CASOS.length;
 const PROY_TOTAL_KG = PROY_HORTIFRUT_KG + PROY_HFE_KG;
@@ -3668,7 +3662,7 @@ const PROYECCION = [];
 for (let pp = PROY_PP_INICIO; pp <= PROY_PP_FIN; pp++) {
   for (let i = 0; i < PROY_FCL_SEMANA; i++) {
     PROYECCION.push({
-      rh: null, pack_plan: pp, fuente: 'Proyectado SOP',
+      rh: null, pack_plan: pp, pp_label: proyPpLabel(pp) + proyPpSuffix(pp), fuente: 'Proyectado SOP',
       hortifrut_kg: PROY_HORTIFRUT_KG, hfe_kg: PROY_HFE_KG, total_kg: PROY_TOTAL_KG,
       pagado_hortifrut: PROY_PAGADO_HORTIFRUT, pagado_hfe: PROY_PAGADO_HFE, pago_total: TARIFA_CONSOLIDADO_ACTUAL,
       costo_solo: COSTO_SOLO, diferencia: PROY_DIFERENCIA,
@@ -3700,7 +3694,7 @@ document.getElementById('errCount').textContent = ERRORES.length;
 if (ERRORES.length === 0) document.getElementById('alertBtn').style.display = 'none';
 const ppMin = Math.min(...CASOS.map(c => c.pack_plan));
 const ppMaxHist = Math.max(...CASOS.map(c => c.pack_plan));
-document.getElementById('tableSub').textContent = `${CASOS.length} casos históricos (PP${ppMin}–PP${ppMaxHist}) + ${PROYECCION.length} proyectados (PP${PROY_PP_INICIO}–PP${PROY_PP_FIN})` + (ERRORES.length ? ` · ${ERRORES.length} casos con error de dato, ver botón de arriba` : '');
+document.getElementById('tableSub').textContent = `${CASOS.length} casos históricos (PP${ppMin}–PP${ppMaxHist}) + ${PROYECCION.length} proyectados (PP${PROY_PP_INICIO}–PP52 y PP1–PP${proyPpLabel(PROY_PP_FIN)} de la temporada siguiente)` + (ERRORES.length ? ` · ${ERRORES.length} casos con error de dato, ver botón de arriba` : '');
 
 function kpiCard(label, value, cls, sub) {
   return `<div class="kpi-card"><div class="kpi-label">${label}</div><div class="kpi-value ${cls || ''}">${value}</div>${sub ? `<div class="kpi-sub">${sub}</div>` : ''}</div>`;
@@ -3710,7 +3704,7 @@ function renderKpis() {
   const totalContenedores = CASOS.length + (includeProy ? PROYECCION.length : 0);
   document.getElementById('kpiStrip').innerHTML = [
     kpiCard('Diferencia histórica total', fmtUSD(totalDiferenciaReal, { decimals: 0 }), totalDiferenciaReal > 0 ? 'pos' : 'neg', `${CASOS.length} contenedores · PP${ppMin}–PP${ppMaxHist} · ${totalDiferenciaReal > 0 ? 'sobrecosto' : 'ahorro'} neto`),
-    kpiCard('Diferencia proyectada', fmtUSD(totalDiferenciaProy, { decimals: 0 }), totalDiferenciaProy > 0 ? 'pos' : 'neg', `PP${PROY_PP_INICIO}–PP${PROY_PP_FIN} · ${PROY_FCL_SEMANA} FCL/semana, tarifa $2,000`),
+    kpiCard('Diferencia proyectada', fmtUSD(totalDiferenciaProy, { decimals: 0 }), totalDiferenciaProy > 0 ? 'pos' : 'neg', `PP${PROY_PP_INICIO}–PP52 + PP1–PP${proyPpLabel(PROY_PP_FIN)} (temp. sig.) · ${PROY_FCL_SEMANA} FCL/semana, tarifa $2,000`),
     kpiCard('Promedio por contenedor', fmtUSD(AVG_DIFF, { decimals: 0 }), AVG_DIFF > 0 ? 'pos' : 'neg', `${nReal} con monto real · ${nEst} estimados por peso`),
     `<div class="kpi-card"><div class="kpi-label">Contenedores totales</div><div class="kpi-value">${totalContenedores}</div><div class="kpi-sub">${CASOS.length} históricos${includeProy ? ' + ' + PROYECCION.length + ' proyectados' : ''}</div><button type="button" class="mini-btn" id="toggleProyBtn">${includeProy ? '− Excluir proyección' : '+ Incluir proyección'}</button></div>`,
   ].join('');
@@ -3732,10 +3726,10 @@ function rowCells(c, difTotal) {
     <td>${fmtNum(c.total_kg, 0)}</td>
     <td style="font-weight:700">${fmtUSD(c.pago_total)}</td>
     <td>${fmtUSD(c.costo_solo)}</td>
-    <td>${fmtUSD(c.usd_kg_hfe, { decimals: 4 })}</td>
-    <td style="color:${c.usd_kg_hortifrut > c.usd_kg_solo ? 'var(--red)' : 'var(--green)'};font-weight:700">${fmtUSD(c.usd_kg_hortifrut, { decimals: 4 })}</td>
-    <td>${fmtUSD(c.usd_kg_solo, { decimals: 4 })}</td>
-    <td style="color:${deltaKg > 0 ? 'var(--red)' : 'var(--green)'}">${deltaKg > 0 ? '+' : ''}${fmtUSD(deltaKg, { decimals: 4 })}</td>
+    <td>${fmtUSD(c.usd_kg_hfe, { decimals: 2 })}</td>
+    <td style="color:${c.usd_kg_hortifrut > c.usd_kg_solo ? 'var(--red)' : 'var(--green)'};font-weight:700">${fmtUSD(c.usd_kg_hortifrut, { decimals: 2 })}</td>
+    <td>${fmtUSD(c.usd_kg_solo, { decimals: 2 })}</td>
+    <td style="color:${deltaKg > 0 ? 'var(--red)' : 'var(--green)'}">${deltaKg > 0 ? '+' : ''}${fmtUSD(deltaKg, { decimals: 2 })}</td>
     <td style="color:${difTotal > 0 ? 'var(--red)' : 'var(--green)'};font-weight:700">${difTotal > 0 ? '+' : ''}${fmtUSD(difTotal)}</td>
   `;
 }
@@ -3766,7 +3760,8 @@ for (const [pp, rows] of groupsByPP) {
   };
   if (summary.fuente === 'mixto') FUENTE_TAG.mixto = ['tag-mixto', 'Mixto'];
   const summaryDifTotal = (summary.usd_kg_hortifrut - summary.usd_kg_solo) * summary.hortifrut_kg;
-  html += `<tr class="pp-group" data-pp="${pp}"><td class="pp-arrow">▸ Pack Plan ${pp}</td>${rowCells(summary, summaryDifTotal).replace(/^\s*<td[^>]*>[^<]*<\/td>/, '')}</tr>`;
+  const ppLabel = rows[0].pp_label !== undefined ? rows[0].pp_label : pp;
+  html += `<tr class="pp-group" data-pp="${pp}" data-pp-label="${ppLabel}"><td class="pp-arrow">▸ Pack Plan ${ppLabel}</td>${rowCells(summary, summaryDifTotal).replace(/^\s*<td[^>]*>[^<]*<\/td>/, '')}</tr>`;
   for (const c of rows) {
     const difTotal = diferenciaTotal(c);
     html += `<tr class="pp-detail" data-pp-detail="${pp}" style="display:none">${rowCells(c, difTotal)}</tr>`;
@@ -3777,7 +3772,7 @@ tbody.querySelectorAll('tr.pp-group').forEach(tr => {
   tr.addEventListener('click', () => {
     const pp = tr.getAttribute('data-pp');
     const open = tr.classList.toggle('open');
-    tr.querySelector('.pp-arrow').textContent = (open ? '▾' : '▸') + ' Pack Plan ' + pp;
+    tr.querySelector('.pp-arrow').textContent = (open ? '▾' : '▸') + ' Pack Plan ' + tr.getAttribute('data-pp-label');
     tbody.querySelectorAll(`tr.pp-detail[data-pp-detail="${pp}"]`).forEach(d => { d.style.display = open ? '' : 'none'; });
   });
 });
