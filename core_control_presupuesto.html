@@ -3588,8 +3588,8 @@ window.parent.postMessage({ type: 'ready', view: 'adjudicacion' }, '*');
       <table id="casesTable">
         <thead><tr>
           <th>RH</th><th>Fuente</th><th>Kg Hortifrut</th><th>Kg HFE Berries</th><th>Kg total</th>
-          <th>Pago total</th><th>Costo solo</th>
-          <th>$/kg HFE Berries</th><th>$/kg Hortifrut (compartido)</th><th>Diferencia total</th><th>$/kg si todo fuera Chao</th>
+          <th>Pago total (Consolidado)</th><th>Flete No consolidado</th>
+          <th>$/kg HFE Berries</th><th>$/kg Hortifrut (compartido)</th><th>$/kg si todo fuera Chao</th><th>Delta $/kg</th><th>Diferencia total</th>
         </tr></thead>
         <tbody></tbody>
       </table>
@@ -3624,7 +3624,7 @@ const CASOS = [
   {"rh": "RH-0265", "pack_plan": 30, "hortifrut_kg": 5985.0, "hfe_kg": 6000.0, "total_kg": 11985.0, "pagado_hortifrut": 901.57, "pagado_hfe": 903.83, "pago_total": 1805.4, "fuente": "real", "costo_solo": 1475.0, "diferencia": -573.43, "usd_kg_hfe": 0.1506, "usd_kg_hortifrut": 0.1506, "usd_kg_solo": 0.1231},
   {"rh": "RH-0542", "pack_plan": 34, "hortifrut_kg": 18115.2, "hfe_kg": 2664.0, "total_kg": 20779.2, "pagado_hortifrut": 1627.29, "pagado_hfe": 239.31, "pago_total": 1866.6, "fuente": "real", "costo_solo": 1475.0, "diferencia": 152.29, "usd_kg_hfe": 0.0898, "usd_kg_hortifrut": 0.0898, "usd_kg_solo": 0.071},
   {"rh": "RH-0598", "pack_plan": 35, "hortifrut_kg": 18115.2, "hfe_kg": 2664.0, "total_kg": 20779.2, "pagado_hortifrut": 1701.75, "pagado_hfe": 250.25, "pago_total": 1952.0, "fuente": "real", "costo_solo": 1475.0, "diferencia": 226.75, "usd_kg_hfe": 0.0939, "usd_kg_hortifrut": 0.0939, "usd_kg_solo": 0.071},
-  {"rh": "RH-0601", "pack_plan": 35, "hortifrut_kg": 17049.6, "hfe_kg": 14688.0, "total_kg": 31737.6, "pagado_hortifrut": 776.67, "pagado_hfe": 669.1, "pago_total": 1445.77, "fuente": "estimado", "costo_solo": 1475.0, "diferencia": -698.33, "usd_kg_hfe": 0.0456, "usd_kg_hortifrut": 0.0456, "usd_kg_solo": 0.0465},
+  {"rh": "RH-0601", "pack_plan": 35, "hortifrut_kg": 17049.6, "hfe_kg": 14688.0, "total_kg": 31737.6, "pagado_hortifrut": 1048.62, "pagado_hfe": 903.38, "pago_total": 1952.0, "fuente": "estimado", "costo_solo": 1475.0, "diferencia": -426.38, "usd_kg_hfe": 0.0615, "usd_kg_hortifrut": 0.0615, "usd_kg_solo": 0.0465},
   {"rh": "RH-0605", "pack_plan": 35, "hortifrut_kg": 6336.0, "hfe_kg": 3726.0, "total_kg": 10062.0, "pagado_hortifrut": 1175.39, "pagado_hfe": 691.21, "pago_total": 1866.6, "fuente": "real", "costo_solo": 1475.0, "diferencia": -299.61, "usd_kg_hfe": 0.1855, "usd_kg_hortifrut": 0.1855, "usd_kg_solo": 0.1466},
   {"rh": "RH-0672", "pack_plan": 36, "hortifrut_kg": 14644.8, "hfe_kg": 5328.0, "total_kg": 19972.8, "pagado_hortifrut": 1366.4, "pagado_hfe": 585.6, "pago_total": 1952.0, "fuente": "real", "costo_solo": 1475.0, "diferencia": -108.6, "usd_kg_hfe": 0.1099, "usd_kg_hortifrut": 0.0933, "usd_kg_solo": 0.0739},
   {"rh": "RH-0665", "pack_plan": 36, "hortifrut_kg": 5760.0, "hfe_kg": 3726.0, "total_kg": 9486.0, "pagado_hortifrut": 1185.28, "pagado_hfe": 766.72, "pago_total": 1952.0, "fuente": "real", "costo_solo": 1475.0, "diferencia": -289.72, "usd_kg_hfe": 0.2058, "usd_kg_hortifrut": 0.2058, "usd_kg_solo": 0.1555},
@@ -3641,9 +3641,10 @@ const ERRORES = [];
 
 // Desde PP38 en adelante, todo caso que no sea "real" (estimado o proyectado) usa la tarifa
 // de consolidado ACTUAL de $2,000 (pago total), no la tarifa histórica de $1,445.77 (esa ya
-// quedó vieja). RH-0601 (PP35, estimado) sigue con la tarifa histórica porque es anterior a
-// la semana 38. "Costo solo" (ruta Chao individual, $1,475.00) no cambia: es la referencia
-// de lo que costaría sacar un contenedor propio, independiente de la tarifa del consolidado.
+// quedó vieja). RH-0601 (PP35) usa $1,952.00, la misma tarifa de ese periodo que los demás
+// casos de PP35-37. "Flete no consolidado" (ruta Chao individual, $1,475.00) no cambia: es la
+// referencia de lo que costaría sacar un contenedor propio, independiente de la tarifa del
+// consolidado.
 const COSTO_SOLO = 1475.0;
 const TARIFA_CONSOLIDADO_ACTUAL = 2000.0;
 
@@ -3722,6 +3723,7 @@ const FUENTE_TAG = { real: ['tag-real', 'Real'], estimado: ['tag-est', 'Estimado
 function kgPct(kg, total) { return `${Math.round(kg)}(%${Math.round(kg / total * 100)})`; }
 function rowCells(c, difTotal) {
   const [tagCls, tagLabel] = FUENTE_TAG[c.fuente];
+  const deltaKg = c.usd_kg_hortifrut - c.usd_kg_solo;
   return `
     <td style="font-family:var(--mono);font-weight:700">${c.rh || '—'}</td>
     <td><span class="tag ${tagCls}">${tagLabel}</span></td>
@@ -3732,8 +3734,9 @@ function rowCells(c, difTotal) {
     <td>${fmtUSD(c.costo_solo)}</td>
     <td>${fmtUSD(c.usd_kg_hfe, { decimals: 4 })}</td>
     <td style="color:${c.usd_kg_hortifrut > c.usd_kg_solo ? 'var(--red)' : 'var(--green)'};font-weight:700">${fmtUSD(c.usd_kg_hortifrut, { decimals: 4 })}</td>
-    <td style="color:${difTotal > 0 ? 'var(--red)' : 'var(--green)'};font-weight:700">${difTotal > 0 ? '+' : ''}${fmtUSD(difTotal)}</td>
     <td>${fmtUSD(c.usd_kg_solo, { decimals: 4 })}</td>
+    <td style="color:${deltaKg > 0 ? 'var(--red)' : 'var(--green)'}">${deltaKg > 0 ? '+' : ''}${fmtUSD(deltaKg, { decimals: 4 })}</td>
+    <td style="color:${difTotal > 0 ? 'var(--red)' : 'var(--green)'};font-weight:700">${difTotal > 0 ? '+' : ''}${fmtUSD(difTotal)}</td>
   `;
 }
 
