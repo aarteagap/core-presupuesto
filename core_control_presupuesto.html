@@ -3506,7 +3506,7 @@ window.parent.postMessage({ type: 'ready', view: 'adjudicacion' }, '*');
   .alert-btn { position: relative; font-size: 11.5px; font-weight: 700; padding: 7px 13px 7px 11px; border-radius: 9px; border: 1px solid rgba(255,69,58,.35); background: rgba(255,69,58,.12); color: var(--red); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
   .alert-btn .count { background: var(--red); color: #fff; border-radius: 999px; min-width: 16px; height: 16px; font-size: 10px; display: inline-flex; align-items: center; justify-content: center; padding: 0 4px; }
 
-  .main { max-width: 1180px; margin: 0 auto; padding: 20px; display: flex; flex-direction: column; gap: 18px; }
+  .main { max-width: 1480px; margin: 0 auto; padding: 20px; display: flex; flex-direction: column; gap: 18px; }
 
   .kpi-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
   .kpi-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; }
@@ -3514,7 +3514,7 @@ window.parent.postMessage({ type: 'ready', view: 'adjudicacion' }, '*');
   .kpi-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
   .kpi-body-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   .kpi-head .kpi-label { margin-bottom: 0; }
-  .kpi-badges { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .kpi-badges { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
   .kpi-badge { font-size: 12px; font-weight: 700; padding: 5px 12px; border-radius: 999px; background: rgba(48,209,88,.16); color: var(--green); white-space: nowrap; }
   .kpi-badge-red { background: rgba(255,69,58,.14); color: var(--red); }
   @media (max-width: 640px) { .kpi-card-wide { grid-column: span 1; } .kpi-head { flex-wrap: wrap; } }
@@ -3718,7 +3718,10 @@ function renderKpis() {
       const sumSobrecostos = totalDiferenciaReal + totalDiferenciaProy;
       return `<div class="kpi-card kpi-card-wide"><div class="kpi-label">Sobre costos Totales</div><div class="kpi-body-row">
         <div><div class="kpi-value ${sumSobrecostos > 0 ? 'pos' : 'neg'}">${fmtUSD(sumSobrecostos, { decimals: 0 })}</div><div class="kpi-sub">Histórico ${fmtUSD(totalDiferenciaReal, { decimals: 0 })} + proyectado ${fmtUSD(totalDiferenciaProy, { decimals: 0 })}</div></div>
-        <div><div class="kpi-value-sm">${totalContenedores}</div><div class="kpi-badges" style="margin-top:6px"><span class="kpi-badge">Contenedores campaña 2526: 5 FCL</span><span class="kpi-badge kpi-badge-red">Diferencia: ${totalContenedores - 5}</span></div><div class="kpi-sub" style="text-align:right;margin-top:6px">${CASOS.length} históricos${includeProy ? ' + ' + PROYECCION.length + ' proyectados' : ''}</div><div style="text-align:right;margin-top:4px"><button type="button" class="mini-btn" id="toggleProyBtn">${includeProy ? '− Excluir proyección' : '+ Incluir proyección'}</button></div></div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+          <div style="display:flex;align-items:baseline;gap:8px"><div class="kpi-value-sm">${totalContenedores}</div><div class="kpi-sub">${CASOS.length} históricos${includeProy ? ' + ' + PROYECCION.length + ' proyectados' : ''}</div></div>
+          <div style="display:flex;align-items:center;gap:8px"><div class="kpi-badges"><span class="kpi-badge">Contenedores campaña 2526: 5 FCL</span><span class="kpi-badge kpi-badge-red">Diferencia: ${totalContenedores - 5}</span></div><button type="button" class="mini-btn" id="toggleProyBtn">${includeProy ? '− Excluir proyección' : '+ Incluir proyección'}</button></div>
+        </div>
       </div></div>`;
     })(),
   ].join('');
