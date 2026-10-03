@@ -46,6 +46,7 @@
     font-family: var(--sans); font-size: 15px; padding: 12px 14px; outline: none; text-align: center; letter-spacing: .04em;
   }
   .access-input:focus { border-color: var(--blue); }
+  .access-input + .access-input { margin-top: 10px; }
   /* El navegador pinta los campos autocompletados con su propio fondo (blanco/amarillo) que
      no respeta el tema oscuro de la página; esto lo fuerza de vuelta al fondo/color del tema. */
   .access-input:-webkit-autofill,
@@ -70,6 +71,7 @@
 <div class="access-gate" id="accessGate">
   <form class="access-card" id="accessForm" autocomplete="on">
     <div class="access-title">CORE</div>
+    <input type="text" id="accessUser" name="username" class="access-input" placeholder="HORTIFRUT" autocomplete="username">
     <input type="password" id="accessInput" name="password" class="access-input" placeholder="Clave de acceso" autocomplete="current-password">
     <div class="access-error" id="accessError"></div>
     <button type="submit" class="access-btn" id="accessBtn">Ingresar</button>
@@ -3829,12 +3831,12 @@ window.parent.postMessage({ type: 'ready', view: 'consolidados' }, '*');
   // leer la clave) — alcanza para que no entre cualquiera por casualidad al link público. Se pide
   // en cada carga/recarga de la página (sin saltarla automáticamente), a propósito. Lo que sí se
   // habilita es que el GESTOR DE CONTRASEÑAS del navegador (Chrome/Edge/etc.) la recuerde y la
-  // sugiera: por eso esto es un <form> real con un campo de password y autocomplete="current-password",
-  // en vez de un input suelto con autocomplete="off" — así, tras ingresarla una vez, el navegador
-  // ofrece guardarla y en las próximas cargas la autocompleta/sugiere (clic y listo). Se deja
-  // afuera un campo de usuario a propósito: con uno presente, el gestor de contraseñas a veces
-  // sugiere ahí credenciales guardadas de OTROS sitios (coincidencia parcial de texto) en vez de
-  // quedarse solo con lo guardado para este dominio — sin campo de usuario no pasa eso.
+  // sugiera: por eso esto es un <form> real con campos user/password y autocomplete correctos, en
+  // vez de inputs sueltos con autocomplete="off" — así, tras ingresarla una vez, el navegador
+  // ofrece guardarla y en las próximas cargas la autocompleta/sugiere (clic y listo), como hace
+  // con cualquier formulario de login. El campo de usuario es solo decorativo (no se valida, solo
+  // la clave) pero hace falta para que el gestor de contraseñas ofrezca guardar: sin él, varios
+  // navegadores no muestran el diálogo de "¿Guardar la contraseña?".
   var ACCESS_PASSWORD = 'HF_core*';
   var gate = document.getElementById('accessGate');
   var frameWrap = document.getElementById('frameWrap');
