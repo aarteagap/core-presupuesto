@@ -53,6 +53,8 @@
     color: #fff; font-family: var(--sans); font-size: 13.5px; font-weight: 700; cursor: pointer; transition: background .15s;
   }
   .access-btn:hover { background: var(--blue-bright); }
+  .access-forget { display: block; margin-top: 14px; font-size: 11px; color: var(--text3); text-decoration: none; }
+  .access-forget:hover { color: var(--text2); }
 </style>
 </head>
 <body>
@@ -64,6 +66,7 @@
     <input type="password" id="accessInput" class="access-input" placeholder="Clave de acceso" autocomplete="off">
     <div class="access-error" id="accessError"></div>
     <button type="button" class="access-btn" id="accessBtn">Ingresar</button>
+    <a href="#" class="access-forget" id="accessForgetBtn">Olvidar este navegador</a>
   </div>
 </div>
 
@@ -3817,17 +3820,34 @@ window.parent.postMessage({ type: 'ready', view: 'consolidados' }, '*');
   // Puerta de acceso general a la plataforma — separada de las claves de Jefe/Coordinador de
   // Maestro (esas son por rol, para editar; esta es solo para poder ABRIR la app). Es seguridad
   // de cara al usuario, no real (esto es HTML estático, cualquiera que vea el código fuente puede
-  // leer la clave) — alcanza para que no entre cualquiera por casualidad al link público. Se pide
-  // en cada carga/recarga de la página (sin persistencia), a propósito.
+  // leer la clave) — alcanza para que no entre cualquiera por casualidad al link público. Una vez
+  // que se ingresa la clave correcta, se guarda en este navegador (localStorage) para no tener
+  // que escribirla en cada carga. Se guarda la clave misma (no solo un flag) y se compara contra
+  // ACCESS_PASSWORD en cada carga: si en el futuro se cambia la clave aquí, los navegadores que
+  // ya la tenían guardada vuelven a pedirla — así cambiar la clave sigue sirviendo para revocar
+  // acceso. "Olvidar este navegador" la borra manualmente.
   var ACCESS_PASSWORD = 'HF_core*';
+  var ACCESS_STORAGE_KEY = 'hf_core_access_key';
   var gate = document.getElementById('accessGate');
   var frameWrap = document.getElementById('frameWrap');
   var accessInput = document.getElementById('accessInput');
   var accessError = document.getElementById('accessError');
   var accessBtn = document.getElementById('accessBtn');
+  var forgetBtn = document.getElementById('accessForgetBtn');
+
+  function rememberAccess() {
+    try { localStorage.setItem(ACCESS_STORAGE_KEY, ACCESS_PASSWORD); } catch (e) {}
+  }
+  function hasRememberedAccess() {
+    try { return localStorage.getItem(ACCESS_STORAGE_KEY) === ACCESS_PASSWORD; } catch (e) { return false; }
+  }
+  function forgetAccess() {
+    try { localStorage.removeItem(ACCESS_STORAGE_KEY); } catch (e) {}
+  }
 
   function tryUnlock() {
     if (accessInput.value === ACCESS_PASSWORD) {
+      rememberAccess();
       unlockApp();
     } else {
       accessError.textContent = 'Clave incorrecta.';
@@ -3837,8 +3857,19 @@ window.parent.postMessage({ type: 'ready', view: 'consolidados' }, '*');
   }
   accessBtn.addEventListener('click', tryUnlock);
   accessInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') tryUnlock(); });
+  if (forgetBtn) {
+    forgetBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      forgetAccess();
+      location.reload();
+    });
+  }
 
-  setTimeout(function() { accessInput.focus(); }, 50);
+  if (hasRememberedAccess()) {
+    unlockApp();
+  } else {
+    setTimeout(function() { accessInput.focus(); }, 50);
+  }
 
   function unlockApp() {
     gate.style.display = 'none';
