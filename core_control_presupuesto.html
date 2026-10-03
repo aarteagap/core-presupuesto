@@ -47,6 +47,17 @@
   }
   .access-input:focus { border-color: var(--blue); }
   .access-input + .access-input { margin-top: 10px; }
+  /* El navegador pinta los campos autocompletados con su propio fondo (blanco/amarillo) que
+     no respeta el tema oscuro de la página; esto lo fuerza de vuelta al fondo/color del tema. */
+  .access-input:-webkit-autofill,
+  .access-input:-webkit-autofill:hover,
+  .access-input:-webkit-autofill:focus {
+    -webkit-text-fill-color: var(--text);
+    -webkit-box-shadow: 0 0 0 1000px var(--bg3) inset;
+    box-shadow: 0 0 0 1000px var(--bg3) inset;
+    caret-color: var(--text);
+    transition: background-color 9999s ease-in-out 0s;
+  }
   .access-error { font-size: 11.5px; color: #ff6a63; margin-top: 10px; min-height: 14px; }
   .access-btn {
     width: 100%; margin-top: 14px; padding: 11px; border: none; border-radius: 12px; background: var(--blue);
@@ -60,7 +71,7 @@
 <div class="access-gate" id="accessGate">
   <form class="access-card" id="accessForm" autocomplete="on">
     <div class="access-title">CORE</div>
-    <input type="text" id="accessUser" name="username" class="access-input" value="HORTIFRUT" autocomplete="username">
+    <input type="text" id="accessUser" name="username" class="access-input" placeholder="HORTIFRUT" autocomplete="username">
     <input type="password" id="accessInput" name="password" class="access-input" placeholder="Clave de acceso" autocomplete="current-password">
     <div class="access-error" id="accessError"></div>
     <button type="submit" class="access-btn" id="accessBtn">Ingresar</button>
