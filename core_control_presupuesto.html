@@ -1065,10 +1065,10 @@ function groupSummary(routes) {
 // ---- Target FSC: recargo fijo por Packing (Chao/Salaverry vs Olmos) — no varía por proveedor ni
 // por semana, solo por a qué packing va la ruta. No viene de ningún archivo cargado, es un monto
 // fijo indicado directamente: US$1,445.77 para rutas con Packing Chao o Salaverry (Callao/Paita/
-// Chancay), US$910.72 para la ruta Paita - Olmos - Paita.
+// Chancay), US$910.72 para la ruta Paita - Olmos - Paita. En Terrestre es un único monto fijo
+// para todo el modo (no varía por corredor Sur/Interoceánica ni por proveedor): US$14,230.
 function fscForRoute(r) {
-  // El recargo FSC por packing es un concepto específico de Marítimo — "CHAO"/"SALAVERRY"/"OLMOS"
-  // también aparecen en nombres de ruta Terrestre (mismos packings, otro medio) y ahí NO aplica.
+  if (r.modo === 'Terrestre') return 14230;
   if (r.modo !== 'Marítimo') return null;
   if (r.ruta.includes('CHAO') || r.ruta.includes('SALAVERRY')) return 1445.77;
   if (r.ruta.includes('OLMOS')) return 910.72;
