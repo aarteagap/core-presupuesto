@@ -3669,14 +3669,16 @@ const COSTO_SOLO = 1475.0;
 const TARIFA_CONSOLIDADO_ACTUAL = 2000.0;
 
 // Proyección: no hay forecast real de consolidados a futuro, así que se proyectan 2
-// contenedores por semana desde la semana siguiente a la última con datos reales (PP41) hasta
+// contenedores por semana desde la semana siguiente a la última con datos reales hasta
 // la semana 4 de enero de la próxima temporada (PP4), usando la tarifa de consolidado actual
 // ($2,000) y el peso promedio histórico de Hortifrut/HFE Berries por contenedor (de los 14
-// casos reales de arriba). Es una extrapolación simple a propósito. Pack Plan da la vuelta a
-// 1 al cerrar la temporada en PP52, así que la proyección sigue PP41..PP52 y luego PP1..PP4
-// de la temporada siguiente (internamente esas 4 últimas semanas se guardan como 53..56 para
-// no chocar con un futuro PP1-4 real, pero se muestran con su número de semana correcto).
-const PROY_PP_INICIO = 41;
+// casos reales de arriba). Es una extrapolación simple a propósito. PP41 ya pasó sin ningún
+// consolidado real (0 contenedores esa semana), así que la proyección arranca en PP42, no en
+// PP41. Pack Plan da la vuelta a 1 al cerrar la temporada en PP52, así que la proyección sigue
+// PP42..PP52 y luego PP1..PP4 de la temporada siguiente (internamente esas 4 últimas semanas
+// se guardan como 53..56 para no chocar con un futuro PP1-4 real, pero se muestran con su
+// número de semana correcto).
+const PROY_PP_INICIO = 42;
 const PROY_PP_FIN = 56; // PP52 (cierre de temporada) + PP1-4 de la temporada siguiente
 const PROY_FCL_SEMANA = 2;
 function proyPpLabel(pp) { return pp > 52 ? pp - 52 : pp; }
