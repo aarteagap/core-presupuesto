@@ -640,6 +640,7 @@
     </div>
     <button class="chip-btn" id="onlyDeviationBtn">Solo desviación negativa</button>
     <button class="chip-btn" id="consolidadosBtn" title="Rutas con 2 Packing (ej. Olmos+Chao) — solo tienen Target Ejecutado, aún no se definió cómo repartirlas. Actívalo para incluirlas en el gráfico y los KPIs.">Consolidados: excluidos</button>
+    <button class="chip-btn active" id="salaverryBtn" title="El packing de Salaverry está apagado actualmente — por defecto no aparece como opción en el filtro de rutas de abajo (sus rutas igual cuentan normalmente en los cálculos y KPIs). Actívalo si necesitas poder elegirla puntualmente en ese filtro.">Salaverry en filtro: oculto</button>
     <button class="chip-btn" id="expandAllBtn">Expandir todo</button>
     <button class="chip-btn" id="collapseAllBtn">Colapsar todo</button>
     <button class="chip-btn" id="resetFiltersBtn">Limpiar filtros</button>
@@ -704,6 +705,7 @@ const state = {
   yAxisMin: 0,                           // piso ajustable del eje Y del gráfico semanal (US$)
   yAxisAuto: true,                       // si está en true, el piso se recalcula solo con cada render según lo que quede visible (filtros + líneas ocultas con la leyenda)
   includeConsolidados: false,            // rutas con 2 Packing (ej. Olmos+Chao) — excluidas por defecto hasta definir cómo deben impactar a las rutas normales
+  hideSalaverryInFilter: true,            // oculta Salaverry de las OPCIONES del filtro de rutas (no de los cálculos); el botón lo deja elegir si quiere verla ahí
   balanceTab: 'inicial',                 // pestaña activa del KPI "Ahorro/pérdida total": 'inicial' | 'actual' | 'fsc'
   groupBy: 'proveedor',
   selectedKeys: new Set(),               // claves incluidas en KPIs/gráficos (según groupBy)
@@ -1726,10 +1728,10 @@ function populateFilterSelects() {
   // Acotado al modo activo (Marítimo/Terrestre/Aéreo) — si no, el desplegable mezclaría nombres de
   // ruta de otro modo (ej. rutas Terrestre apareciendo mientras se ve el Dashboard en Marítimo).
   const enModo = DATA.routes.filter(r => r.modo === state.mode);
-  // El packing de Salaverry está apagado actualmente — no se ofrece como opción para filtrar
-  // (aunque sus rutas se sigan incluyendo normalmente en los cálculos si alguien llega a ellas
-  // por búsqueda de texto u otra vía).
-  const rutasNormales = [...new Set(enModo.filter(r => !isConsolidadoRuta(r.ruta) && !isSalaverryRuta(r.ruta)).map(r => r.ruta))].sort();
+  // El packing de Salaverry está apagado actualmente — por defecto no se ofrece como opción para
+  // filtrar (sus rutas se siguen incluyendo normalmente en los cálculos); el botón "Salaverry en
+  // filtro" deja mostrarla de nuevo en este desplegable si hace falta elegirla puntualmente.
+  const rutasNormales = [...new Set(enModo.filter(r => !isConsolidadoRuta(r.ruta) && (!state.hideSalaverryInFilter || !isSalaverryRuta(r.ruta))).map(r => r.ruta))].sort();
   const hayConsolidados = enModo.some(r => isConsolidadoRuta(r.ruta));
   const provs = [...new Set(enModo.map(r => r.proveedor))].sort();
   const rutaSel = document.getElementById('rutaFilter');
@@ -1739,6 +1741,9 @@ function populateFilterSelects() {
   rutasNormales.forEach(r => rutaSel.insertAdjacentHTML('beforeend', `<option value="${r}">${r}</option>`));
   if (hayConsolidados) rutaSel.insertAdjacentHTML('beforeend', `<option value="CONSOLIDADOS">🔀 CONSOLIDADOS (2 Packing)</option>`);
   provs.forEach(p => provSel.insertAdjacentHTML('beforeend', `<option value="${p}">${p}</option>`));
+  // Reconstruir las opciones vacía el <select>; si la ruta seleccionada sigue siendo una opción
+  // válida (ej. al togglear "Salaverry en filtro" sin cambiar de modo), se restaura la selección.
+  if (state.rutaFilter && [...rutaSel.options].some(o => o.value === state.rutaFilter)) rutaSel.value = state.rutaFilter;
 
   const ppMinSel = document.getElementById('ppMinFilter');
   const ppMaxSel = document.getElementById('ppMaxFilter');
@@ -1826,6 +1831,14 @@ document.getElementById('consolidadosBtn').addEventListener('click', (e) => {
   e.target.textContent = state.includeConsolidados ? 'Consolidados: incluidos' : 'Consolidados: excluidos';
   renderAllReactive();
 });
+document.getElementById('salaverryBtn').addEventListener('click', (e) => {
+  state.hideSalaverryInFilter = !state.hideSalaverryInFilter;
+  e.target.classList.toggle('active', state.hideSalaverryInFilter);
+  e.target.textContent = state.hideSalaverryInFilter ? 'Salaverry en filtro: oculto' : 'Salaverry en filtro: visible';
+  // Solo repobla las OPCIONES del desplegable de ruta — esto no toca cálculos/KPIs, así que no
+  // hace falta un renderAllReactive().
+  populateFilterSelects();
+});
 document.getElementById('expandAllBtn').addEventListener('click', () => {
   const keyFn = state.groupBy === 'proveedor' ? (r => r.proveedor) : (r => r.ruta);
   DATA.routes.forEach(r => state.expandedKeys.add(keyFn(r)));
@@ -1841,6 +1854,10 @@ document.getElementById('resetFiltersBtn').addEventListener('click', () => {
   state.includeConsolidados = false;
   const cBtn = document.getElementById('consolidadosBtn');
   cBtn.classList.remove('active'); cBtn.textContent = 'Consolidados: excluidos';
+  state.hideSalaverryInFilter = true;
+  const sBtn = document.getElementById('salaverryBtn');
+  sBtn.classList.add('active'); sBtn.textContent = 'Salaverry en filtro: oculto';
+  populateFilterSelects();
   renderAllReactive();
 });
 document.getElementById('groupToggle').addEventListener('click', (e) => {
@@ -2105,6 +2122,7 @@ try { renderAll(); } catch (err) { console.error('renderAll inicial falló (revi
         </select>
         <select id="rutaFilter" class="select-input"><option value="">Todas las rutas</option></select>
         <select id="provFilter" class="select-input"><option value="">Todos los proveedores</option></select>
+        <button class="edit-btn" id="salaverryBtn" type="button" title="El packing de Salaverry está apagado actualmente — por defecto no aparece como opción en el filtro de rutas de arriba (sus rutas igual se siguen mostrando normalmente en la tabla). Actívalo si necesitas poder elegirla puntualmente en ese filtro.">Salaverry en filtro: oculto</button>
         <button class="edit-btn" id="exportBtn" type="button">⬇ Exportar a Excel</button>
         <button class="edit-btn primary" id="uploadHorizonBtn" type="button">⬆ Cargar Horizon</button>
         <input type="file" id="horizonFileInput" accept=".xlsm,.xlsx" style="display:none;">
@@ -2171,7 +2189,7 @@ function getStoredRole() {
 function setStoredRole(role) {
   try { if (role) sessionStorage.setItem('core_role', role); else sessionStorage.removeItem('core_role'); } catch (e) {}
 }
-const state = { search: '', rutaFilter: '', provFilter: '', modoFilter: 'Marítimo', overrides: new Map(), openKey: null, role: getStoredRole() };
+const state = { search: '', rutaFilter: '', provFilter: '', modoFilter: 'Marítimo', overrides: new Map(), openKey: null, role: getStoredRole(), hideSalaverryInFilter: true };
 
 function promptForRole() {
   const clave = window.prompt('Ingresa tu clave de acceso (Jefe, Coordinador o Administrador):', '');
@@ -2615,10 +2633,12 @@ function slug(key) { return key.replace(/[^a-zA-Z0-9]/g, '_'); }
 // =====================================================================
 // # 04 FILTROS + POBLAR SELECTS
 // =====================================================================
-// El packing de Salaverry está apagado actualmente — no se ofrece como opción para filtrar en el
-// Maestro (puede aparecer como POL o como Packing del corredor Terrestre, ej. "SALAVERRY - SUR -
-// BARUERI"); sus rutas siguen apareciendo normalmente en la tabla si se llega a ellas por búsqueda
-// de texto o sin filtro de ruta — esto solo afecta el desplegable.
+// El packing de Salaverry está apagado actualmente — por defecto no se ofrece como opción para
+// filtrar en el Maestro (puede aparecer como POL o como Packing del corredor Terrestre, ej.
+// "SALAVERRY - SUR - BARUERI"); sus rutas siguen apareciendo normalmente en la tabla si se llega a
+// ellas por búsqueda de texto o sin filtro de ruta. El botón "Salaverry en filtro" deja mostrarla
+// de nuevo en este desplegable si hace falta elegirla puntualmente — esto solo afecta la lista de
+// opciones, no qué filas se muestran en la tabla.
 function isSalaverryRuta(ruta) { return ruta.toUpperCase().includes('SALAVERRY'); }
 function populateFilters() {
   const rutaSel = document.getElementById('rutaFilter');
@@ -2626,12 +2646,13 @@ function populateFilters() {
   // Ruta/Proveedor se acotan al modo elegido (Marítimo/Terrestre/Aéreo) para no mezclar nombres de
   // ruta de un modo con otro en el mismo desplegable.
   const enModo = DATA.routes.filter(r => r.modo === state.modoFilter);
-  const rutas = [...new Set(enModo.filter(r => !isSalaverryRuta(r.ruta)).map(r => r.ruta))].sort();
+  const rutas = [...new Set(enModo.filter(r => !state.hideSalaverryInFilter || !isSalaverryRuta(r.ruta)).map(r => r.ruta))].sort();
   const provs = [...new Set(enModo.map(r => r.proveedor))].sort();
   rutaSel.innerHTML = '<option value="">Todas las rutas</option>';
   provSel.innerHTML = '<option value="">Todos los proveedores</option>';
   rutas.forEach(r => rutaSel.insertAdjacentHTML('beforeend', `<option value="${r}">${r}</option>`));
   provs.forEach(p => provSel.insertAdjacentHTML('beforeend', `<option value="${p}">${p}</option>`));
+  if (state.rutaFilter && [...rutaSel.options].some(o => o.value === state.rutaFilter)) rutaSel.value = state.rutaFilter;
 }
 function matchesFilter(r) {
   const term = state.search.trim().toLowerCase();
@@ -2928,6 +2949,13 @@ document.getElementById('modoFilter').addEventListener('change', (e) => {
 });
 document.getElementById('rutaFilter').addEventListener('change', (e) => { state.rutaFilter = e.target.value; renderMasterTable(); });
 document.getElementById('provFilter').addEventListener('change', (e) => { state.provFilter = e.target.value; renderMasterTable(); });
+document.getElementById('salaverryBtn').addEventListener('click', (e) => {
+  state.hideSalaverryInFilter = !state.hideSalaverryInFilter;
+  e.target.classList.toggle('primary', !state.hideSalaverryInFilter);
+  e.target.textContent = state.hideSalaverryInFilter ? 'Salaverry en filtro: oculto' : 'Salaverry en filtro: visible';
+  // Solo repobla las OPCIONES del desplegable de ruta — no cambia qué filas se muestran en la tabla.
+  populateFilters();
+});
 
 function applyRoleUI() {
   const btn = document.getElementById('roleLockBtn');
