@@ -640,7 +640,6 @@
     </div>
     <button class="chip-btn" id="onlyDeviationBtn">Solo desviación negativa</button>
     <button class="chip-btn" id="consolidadosBtn" title="Rutas con 2 Packing (ej. Olmos+Chao) — solo tienen Target Ejecutado, aún no se definió cómo repartirlas. Actívalo para incluirlas en el gráfico y los KPIs.">Consolidados: excluidos</button>
-    <button class="chip-btn" id="salaverryBtn" title="El packing de Salaverry está apagado actualmente — oculta del todo cualquier ruta cuyo nombre incluya Salaverry (POL o Packing), en Marítimo y en Terrestre.">Salaverry: incluido</button>
     <button class="chip-btn" id="expandAllBtn">Expandir todo</button>
     <button class="chip-btn" id="collapseAllBtn">Colapsar todo</button>
     <button class="chip-btn" id="resetFiltersBtn">Limpiar filtros</button>
@@ -705,7 +704,6 @@ const state = {
   yAxisMin: 0,                           // piso ajustable del eje Y del gráfico semanal (US$)
   yAxisAuto: true,                       // si está en true, el piso se recalcula solo con cada render según lo que quede visible (filtros + líneas ocultas con la leyenda)
   includeConsolidados: false,            // rutas con 2 Packing (ej. Olmos+Chao) — excluidas por defecto hasta definir cómo deben impactar a las rutas normales
-  includeSalaverry: true,                // Salaverry (POL o Packing) — incluido por defecto; el botón lo oculta del todo mientras ese packing esté apagado
   balanceTab: 'inicial',                 // pestaña activa del KPI "Ahorro/pérdida total": 'inicial' | 'actual' | 'fsc'
   groupBy: 'proveedor',
   selectedKeys: new Set(),               // claves incluidas en KPIs/gráficos (según groupBy)
@@ -1023,7 +1021,9 @@ function allEffectiveRoutes() { return DATA.routes.map(effectiveRoute); }
 function isConsolidadoRuta(ruta) { return ruta.split(' - ').length > 3; }
 // Salaverry puede aparecer como POL (ej. "PAITA - SALAVERRY - PAITA") o como Packing dentro del
 // nombre del corredor Terrestre (ej. "SALAVERRY - SUR - BARUERI") — con que el nombre de la ruta
-// lo mencione alcanza para ocultarla, ya que ambos casos significan "pasa por Salaverry".
+// lo mencione alcanza para detectarla. El packing de Salaverry está apagado actualmente, así que
+// no se ofrece como opción en el filtro de rutas (ver populateFilterSelects), pero sus rutas
+// siguen incluidas normalmente en los cálculos, KPIs y gráficos — esto solo afecta el desplegable.
 function isSalaverryRuta(ruta) { return ruta.toUpperCase().includes('SALAVERRY'); }
 
 function matchesGlobalFilters(r) {
@@ -1034,8 +1034,7 @@ function matchesGlobalFilters(r) {
   const matchesMode = r.modo === state.mode;
   const matchesNegative = !state.onlyNegative || (r.desviacion !== null && r.desviacion < 0);
   const matchesConsolidados = state.includeConsolidados || !isConsolidadoRuta(r.ruta);
-  const matchesSalaverry = state.includeSalaverry || !isSalaverryRuta(r.ruta);
-  return matchesSearch && matchesRuta && matchesProv && matchesMode && matchesNegative && matchesConsolidados && matchesSalaverry;
+  return matchesSearch && matchesRuta && matchesProv && matchesMode && matchesNegative && matchesConsolidados;
 }
 // activo = visible Y su grupo (proveedor o ruta, según groupBy) está chequeado en el checklist
 function isActive(r) {
@@ -1727,7 +1726,10 @@ function populateFilterSelects() {
   // Acotado al modo activo (Marítimo/Terrestre/Aéreo) — si no, el desplegable mezclaría nombres de
   // ruta de otro modo (ej. rutas Terrestre apareciendo mientras se ve el Dashboard en Marítimo).
   const enModo = DATA.routes.filter(r => r.modo === state.mode);
-  const rutasNormales = [...new Set(enModo.filter(r => !isConsolidadoRuta(r.ruta)).map(r => r.ruta))].sort();
+  // El packing de Salaverry está apagado actualmente — no se ofrece como opción para filtrar
+  // (aunque sus rutas se sigan incluyendo normalmente en los cálculos si alguien llega a ellas
+  // por búsqueda de texto u otra vía).
+  const rutasNormales = [...new Set(enModo.filter(r => !isConsolidadoRuta(r.ruta) && !isSalaverryRuta(r.ruta)).map(r => r.ruta))].sort();
   const hayConsolidados = enModo.some(r => isConsolidadoRuta(r.ruta));
   const provs = [...new Set(enModo.map(r => r.proveedor))].sort();
   const rutaSel = document.getElementById('rutaFilter');
@@ -1824,12 +1826,6 @@ document.getElementById('consolidadosBtn').addEventListener('click', (e) => {
   e.target.textContent = state.includeConsolidados ? 'Consolidados: incluidos' : 'Consolidados: excluidos';
   renderAllReactive();
 });
-document.getElementById('salaverryBtn').addEventListener('click', (e) => {
-  state.includeSalaverry = !state.includeSalaverry;
-  e.target.classList.toggle('active', !state.includeSalaverry);
-  e.target.textContent = state.includeSalaverry ? 'Salaverry: incluido' : 'Salaverry: excluido';
-  renderAllReactive();
-});
 document.getElementById('expandAllBtn').addEventListener('click', () => {
   const keyFn = state.groupBy === 'proveedor' ? (r => r.proveedor) : (r => r.ruta);
   DATA.routes.forEach(r => state.expandedKeys.add(keyFn(r)));
@@ -1845,9 +1841,6 @@ document.getElementById('resetFiltersBtn').addEventListener('click', () => {
   state.includeConsolidados = false;
   const cBtn = document.getElementById('consolidadosBtn');
   cBtn.classList.remove('active'); cBtn.textContent = 'Consolidados: excluidos';
-  state.includeSalaverry = true;
-  const sBtn = document.getElementById('salaverryBtn');
-  sBtn.classList.remove('active'); sBtn.textContent = 'Salaverry: incluido';
   renderAllReactive();
 });
 document.getElementById('groupToggle').addEventListener('click', (e) => {
@@ -2622,13 +2615,18 @@ function slug(key) { return key.replace(/[^a-zA-Z0-9]/g, '_'); }
 // =====================================================================
 // # 04 FILTROS + POBLAR SELECTS
 // =====================================================================
+// El packing de Salaverry está apagado actualmente — no se ofrece como opción para filtrar en el
+// Maestro (puede aparecer como POL o como Packing del corredor Terrestre, ej. "SALAVERRY - SUR -
+// BARUERI"); sus rutas siguen apareciendo normalmente en la tabla si se llega a ellas por búsqueda
+// de texto o sin filtro de ruta — esto solo afecta el desplegable.
+function isSalaverryRuta(ruta) { return ruta.toUpperCase().includes('SALAVERRY'); }
 function populateFilters() {
   const rutaSel = document.getElementById('rutaFilter');
   const provSel = document.getElementById('provFilter');
   // Ruta/Proveedor se acotan al modo elegido (Marítimo/Terrestre/Aéreo) para no mezclar nombres de
   // ruta de un modo con otro en el mismo desplegable.
   const enModo = DATA.routes.filter(r => r.modo === state.modoFilter);
-  const rutas = [...new Set(enModo.map(r => r.ruta))].sort();
+  const rutas = [...new Set(enModo.filter(r => !isSalaverryRuta(r.ruta)).map(r => r.ruta))].sort();
   const provs = [...new Set(enModo.map(r => r.proveedor))].sort();
   rutaSel.innerHTML = '<option value="">Todas las rutas</option>';
   provSel.innerHTML = '<option value="">Todos los proveedores</option>';
