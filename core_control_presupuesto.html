@@ -705,6 +705,7 @@ const state = {
   yAxisMin: 0,                           // piso ajustable del eje Y del gráfico semanal (US$)
   yAxisAuto: true,                       // si está en true, el piso se recalcula solo con cada render según lo que quede visible (filtros + líneas ocultas con la leyenda)
   includeConsolidados: false,            // rutas con 2 Packing (ej. Olmos+Chao) — excluidas por defecto hasta definir cómo deben impactar a las rutas normales
+  consolidadosAutoOn: false,             // true cuando includeConsolidados se prendió solo porque se eligió "CONSOLIDADOS" en el filtro de ruta (se revierte al salir de ese filtro)
   hideSalaverryInFilter: true,            // oculta Salaverry de las OPCIONES del filtro de rutas (no de los cálculos); el botón lo deja elegir si quiere verla ahí
   balanceTab: 'inicial',                 // pestaña activa del KPI "Ahorro/pérdida total": 'inicial' | 'actual' | 'fsc'
   groupBy: 'proveedor',
@@ -1792,12 +1793,20 @@ function renderAll() {
 document.getElementById('searchInput').addEventListener('input', (e) => { state.search = e.target.value; renderAllReactive(); });
 document.getElementById('rutaFilter').addEventListener('change', (e) => {
   state.rutaFilter = e.target.value;
+  const cBtn = document.getElementById('consolidadosBtn');
   // Elegir "CONSOLIDADOS" en el filtro no tendría sentido si el botón de abajo los sigue
-  // excluyendo — se prende solo para que la selección se refleje de inmediato.
+  // excluyendo — se prende solo para que la selección se refleje de inmediato. Se marca como
+  // "prendido automático" (consolidadosAutoOn) para poder apagarlo de nuevo al salir de ese
+  // filtro — si no, quedaba prendido para siempre y al volver a "Todas las rutas" los 4
+  // consolidados seguían sumando en los KPIs sin que el usuario lo pidiera.
   if (state.rutaFilter === 'CONSOLIDADOS' && !state.includeConsolidados) {
     state.includeConsolidados = true;
-    const cBtn = document.getElementById('consolidadosBtn');
+    state.consolidadosAutoOn = true;
     if (cBtn) { cBtn.classList.add('active'); cBtn.textContent = 'Consolidados: incluidos'; }
+  } else if (state.rutaFilter !== 'CONSOLIDADOS' && state.consolidadosAutoOn) {
+    state.includeConsolidados = false;
+    state.consolidadosAutoOn = false;
+    if (cBtn) { cBtn.classList.remove('active'); cBtn.textContent = 'Consolidados: excluidos'; }
   }
   renderAllReactive();
 });
@@ -1827,6 +1836,7 @@ document.getElementById('onlyDeviationBtn').addEventListener('click', (e) => {
 });
 document.getElementById('consolidadosBtn').addEventListener('click', (e) => {
   state.includeConsolidados = !state.includeConsolidados;
+  state.consolidadosAutoOn = false; // elección manual del usuario, ya no es el prendido automático del filtro CONSOLIDADOS
   e.target.classList.toggle('active', state.includeConsolidados);
   e.target.textContent = state.includeConsolidados ? 'Consolidados: incluidos' : 'Consolidados: excluidos';
   renderAllReactive();
@@ -1852,6 +1862,7 @@ document.getElementById('resetFiltersBtn').addEventListener('click', () => {
   document.getElementById('ppMinFilter').value = state.weekMin; document.getElementById('ppMaxFilter').value = state.weekMax;
   document.getElementById('onlyDeviationBtn').classList.remove('active');
   state.includeConsolidados = false;
+  state.consolidadosAutoOn = false;
   const cBtn = document.getElementById('consolidadosBtn');
   cBtn.classList.remove('active'); cBtn.textContent = 'Consolidados: excluidos';
   state.hideSalaverryInFilter = true;
