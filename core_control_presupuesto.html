@@ -2143,6 +2143,7 @@ try { renderAll(); } catch (err) { console.error('renderAll inicial falló (revi
         <div class="toolbar-count" id="toolbarCount"></div>
       </div>
 
+      <div id="pctAuditPanel"></div>
       <div class="master-table-wrap" id="masterTable"></div>
     </div>
   </div>
@@ -2737,6 +2738,9 @@ function pctGroupKey(r) {
 function pctTotalsByRuta() {
   const totals = {};
   DATA.routes.forEach(r => {
+    // Aéreo no tiene adjudicación (ver fscForRoute/DATA.routes de Aéreo) — sus % siempre quedan en
+    // 0 a propósito, así que incluirlo acá dispararía una alerta falsa de "suma 0%, no 100%".
+    if (r.modo === 'Aéreo') return;
     const ov = state.overrides.get(routeKey(r));
     const pct = vigenteHoy(r, ov).pct;
     const k = pctGroupKey(r);
@@ -2745,7 +2749,29 @@ function pctTotalsByRuta() {
   return totals;
 }
 
+// Panel de auditoría GLOBAL: a diferencia del badge por fila (que solo se ve si esa ruta está
+// visible con el filtro actual), esto recorre TODAS las rutas/proveedores de una — así no hace
+// falta ir filtro por filtro buscando cuál quedó sin sumar 100% de adjudicación vigente.
+function renderPctAudit() {
+  const el = document.getElementById('pctAuditPanel');
+  if (!el) return;
+  const totals = pctTotalsByRuta();
+  const off = Object.entries(totals).filter(([, v]) => Math.abs(v - 1) > 0.005);
+  const boxStyle = 'margin: 10px 0; padding: 10px 14px; border-radius: 10px; font-family: var(--sans); font-size: 12.5px;';
+  if (!off.length) {
+    el.innerHTML = `<div style="${boxStyle} background: rgba(52,199,89,0.12); border: 1px solid rgba(52,199,89,0.3); color: #34c759;">✓ Todas las rutas/proveedores (Marítimo y Terrestre) suman 100% de adjudicación vigente — el Target Actual del Dashboard no debería estar distorsionado por esto.</div>`;
+    return;
+  }
+  const items = off.map(([k, v]) => {
+    const [modo, ruta] = k.split('|||');
+    const label = ruta === '__GLOBAL__' ? 'Terrestre (todas las rutas y proveedores)' : `${ruta} (${modo})`;
+    return `<li>${label}: suma <b>${fmtPct(v)}</b></li>`;
+  }).join('');
+  el.innerHTML = `<div style="${boxStyle} background: rgba(255,69,58,0.12); border: 1px solid rgba(255,69,58,0.3); color: #ff6961;">⚠ ${off.length} grupo(s) no suman 100% de adjudicación vigente — esto distorsiona el Target Actual del Dashboard:<ul style="margin: 6px 0 0 18px; padding: 0;">${items}</ul></div>`;
+}
+
 function renderMasterTable() {
+  renderPctAudit();
   const el = document.getElementById('masterTable');
   const rows = DATA.routes.filter(matchesFilter);
   document.getElementById('toolbarCount').textContent = `${rows.length} registro(s) proveedor · ruta`;
@@ -2766,7 +2792,7 @@ function renderMasterTable() {
     const vigencia = vig.fecha_inicio ? vig : null;
     const isOpen = state.openKey === key;
     const rutaTotal = rutaTotals[pctGroupKey(r)] || 0;
-    const rutaOff = Math.abs(rutaTotal - 1) > 0.005;
+    const rutaOff = r.modo !== 'Aéreo' && Math.abs(rutaTotal - 1) > 0.005;
     const rutaOffLabel = r.modo === 'Terrestre' ? 'Sumando el % Adjudicación vigente de TODOS los proveedores y rutas Terrestre (un solo camión activo a la vez, en cualquier corredor)' : 'Sumando el % Adjudicación vigente de todos los proveedores de esta ruta';
     const rutaOffText = r.modo === 'Terrestre' ? `⚠ Terrestre suma ${fmtPct(rutaTotal)}, no 100%` : `⚠ Ruta suma ${fmtPct(rutaTotal)}, no 100%`;
 
@@ -2920,7 +2946,7 @@ function wireRowEvents() {
       // los demás de la misma ruta. No bloquea el guardado, solo avisa (puede ser una transición
       // a propósito mientras se terminan de editar todos los proveedores de esa ruta).
       const thisRoute = DATA.routes.find(x => routeKey(x) === key);
-      if (thisRoute) {
+      if (thisRoute && thisRoute.modo !== 'Aéreo') {
         // Terrestre: el 100% se reparte entre TODAS las rutas/corredores del pool, no solo dentro
         // de esta ruta (ver pctGroupKey) — así que el grupo a validar es todo Terrestre, no solo
         // los proveedores de "thisRoute.ruta".
