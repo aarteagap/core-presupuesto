@@ -1518,7 +1518,7 @@ function renderCustomTooltip(context, tooltipEl, exec, targetInicial, targetFsc,
   const deltaFsc = (weekVal !== null && targetFsc !== null && targetFsc !== undefined) ? weekVal - targetFsc : null;
 
   const rows = [
-    { color: chartPalette.initial, name: 'Target Inicial', val: targetInicial !== null ? fmtUSD(targetInicial) : '—' },
+    { color: chartPalette.initial, name: 'Target Inicial', val: targetInicial !== null ? fmtUSD(targetInicial, { decimals: 2 }) : '—' },
     { color: chartPalette.actual, name: 'Target Actual', val: (targetActual !== null && targetActual !== undefined) ? fmtUSD(targetActual, { decimals: 2 }) : '—' },
     { color: chartPalette.fsc, name: 'Target FSC', val: targetFsc !== null ? fmtUSD(targetFsc, { decimals: 2 }) : '—' },
     { color: chartPalette.executed, name: `Target Ejecutado (Acumulativo)${isProjected ? ' (proy.)' : ''}`, val: fmtUSD(exec.solid[idx] !== null ? exec.solid[idx] : exec.dashed[idx], { decimals: 2 }) },
