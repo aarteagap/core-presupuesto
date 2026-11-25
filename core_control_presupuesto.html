@@ -153,6 +153,35 @@
     background: var(--bg3); color: var(--text); cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all .15s; text-decoration: none;
   }
   .header-btn:hover { border-color: var(--blue); background: var(--bg4); }
+  .header-icon-btn {
+    width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--border2); background: var(--bg3);
+    color: var(--text2); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all .15s;
+  }
+  .header-icon-btn:hover { border-color: var(--blue); color: var(--blue); background: var(--bg4); }
+
+  /* ============ 01b MODAL: historial de modificaciones ============ */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,.45);
+    align-items: flex-start; justify-content: center; padding: 60px 16px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-card {
+    width: 100%; max-width: 560px; max-height: calc(100vh - 100px); background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 16px; box-shadow: var(--shadow-card); display: flex; flex-direction: column; overflow: hidden;
+  }
+  .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px 0; }
+  .modal-title { font-size: 15px; font-weight: 700; color: var(--text); }
+  .modal-close { width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--border2); background: var(--bg3); color: var(--text2); cursor: pointer; font-size: 12px; }
+  .modal-close:hover { border-color: var(--red); color: var(--red-bright); }
+  .modal-sub { font-size: 11px; color: var(--text3); padding: 4px 18px 14px; }
+  .modal-body { overflow-y: auto; padding: 0 18px 18px; }
+  .activity-row { padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .activity-row:last-child { border-bottom: none; }
+  .activity-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 3px; }
+  .activity-tipo { font-family: var(--mono); font-size: 10px; font-weight: 700; }
+  .activity-fecha { font-size: 10.5px; color: var(--text3); white-space: nowrap; }
+  .activity-desc { font-size: 12px; color: var(--text); line-height: 1.4; }
+  .activity-by { font-size: 10.5px; color: var(--text3); margin-top: 2px; }
 
   .main { padding: 16px 20px 40px; max-width: 1440px; margin: 0 auto; }
 
@@ -577,6 +606,9 @@
     </div>
   </div>
   <div class="header-right">
+    <button class="header-icon-btn" id="activityLogBtn" title="Historial de modificaciones" aria-label="Historial de modificaciones">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="M12 7.5v4.8l3.2 1.9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
     <span class="badge" id="liveStatusBadge" title="Estado de la conexión con la base de datos">● Conectando…</span>
     <a class="header-btn" href="adjudicacion_servicios.html">Adjudicación</a>
     <a class="header-btn" href="maestro_tarifas.html">Maestro de tarifas</a>
@@ -584,6 +616,17 @@
     <div class="theme-switch">
       <button class="ios-toggle" id="themeToggle" aria-label="Cambiar tema" title="Cambiar tema"><span class="knob"></span></button>
     </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="activityLogOverlay">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="modal-title">Historial de modificaciones</div>
+      <button class="modal-close" id="activityLogCloseBtn" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="modal-sub">Ediciones de tarifa/adjudicación, eliminaciones de versiones y cargas de Horizon — más reciente primero.</div>
+    <div class="modal-body" id="activityLogBody"></div>
   </div>
 </div>
 
@@ -798,6 +841,42 @@ async function updateLiveStatusBadge() {
   }
 }
 updateLiveStatusBadge();
+
+// ---- Historial de modificaciones (botón del reloj) ----
+async function openActivityLog() {
+  const overlay = document.getElementById('activityLogOverlay');
+  const body = document.getElementById('activityLogBody');
+  overlay.classList.add('open');
+  body.innerHTML = `<div class="empty-state">Cargando…</div>`;
+  if (!sb) { body.innerHTML = `<div class="empty-state">Sin conexión a la base de datos.</div>`; return; }
+  try {
+    const { data, error } = await sb.from('activity_log').select('*').order('creado_en', { ascending: false }).limit(300);
+    if (error) throw error;
+    if (!data || !data.length) { body.innerHTML = `<div class="empty-state">Sin actividad registrada todavía.</div>`; return; }
+    const TIPO_LABEL = { tarifa: '✏ Tarifa / Adjudicación', eliminacion: '🗑 Eliminación', horizon: '⬆ Carga Horizon' };
+    const TIPO_COLOR = { tarifa: 'var(--blue)', eliminacion: 'var(--red-bright)', horizon: 'var(--green-bright)' };
+    body.innerHTML = data.map(row => `
+      <div class="activity-row">
+        <div class="activity-top">
+          <span class="activity-tipo" style="color:${TIPO_COLOR[row.tipo] || 'var(--text2)'}">${TIPO_LABEL[row.tipo] || row.tipo}</span>
+          <span class="activity-fecha">${fmtDateTime(row.creado_en) || ''}</span>
+        </div>
+        <div class="activity-desc">${row.descripcion}</div>
+        ${row.updated_by ? `<div class="activity-by">por <b>${row.updated_by}</b></div>` : ''}
+      </div>
+    `).join('');
+  } catch (err) {
+    console.error('Error cargando historial de actividad:', err);
+    body.innerHTML = `<div class="empty-state">⚠ No se pudo cargar el historial (revisa la consola) — probablemente falta correr el SQL más reciente (tabla activity_log) en Supabase.</div>`;
+  }
+}
+document.getElementById('activityLogBtn').addEventListener('click', openActivityLog);
+document.getElementById('activityLogCloseBtn').addEventListener('click', () => {
+  document.getElementById('activityLogOverlay').classList.remove('open');
+});
+document.getElementById('activityLogOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'activityLogOverlay') e.target.classList.remove('open');
+});
 
 // Misma tabla que en Maestro (ver ahí el porqué) — se necesita acá también para poder traducir la
 // "Fecha vencimiento" de una versión Terrestre a su Pack Plan (ver vigenciasFromHistorial).
@@ -2266,6 +2345,20 @@ async function loadOverridesFromSupabase() {
   }
 }
 
+// Registro general de actividad (edición de tarifa/%, eliminación de versión, carga de Horizon) —
+// alimenta el botón del reloj en el Dashboard. No bloquea el flujo que lo llama si falla (ej. la
+// tabla activity_log todavía no existe porque no se corrió el SQL más reciente): solo se loguea en
+// consola, nunca se interrumpe un guardado/carga por esto.
+async function logActivity(tipo, descripcion, updatedBy) {
+  if (!sb) return;
+  try {
+    const { error } = await sb.from('activity_log').insert({ tipo, descripcion, updated_by: updatedBy || null });
+    if (error) throw error;
+  } catch (err) {
+    console.error('Error registrando actividad (no afecta el guardado/carga en sí):', err);
+  }
+}
+
 // Devuelve true/false — el llamador SOLO debe avisarle al usuario "guardado" si esto resuelve en
 // true. Antes se mostraba el toast de éxito de inmediato sin esperar esta respuesta, así que si
 // Supabase rechazaba el guardado (ej. columna nueva que aún no existe porque no se corrió el SQL
@@ -2295,6 +2388,7 @@ async function saveOverrideToSupabase(key, r, entry) {
     });
     if (error) throw error;
     setSyncStatus('✓ Guardado en Supabase');
+    logActivity('tarifa', `${r.proveedor} — ${r.ruta}: tarifa ${fmtUSD(entry.tarifa_nueva,{decimals:2})} · % Adj ${fmtPct(entry.pct_adj_nueva)} · vigencia ${entry.fecha_inicio} → ${entry.fecha_vencimiento}`, entry.updated_by);
     return { id: histData && histData.id };
   } catch (err) {
     console.error('Error guardando tarifa en Supabase:', err);
@@ -2576,6 +2670,7 @@ document.getElementById('horizonFileInput').addEventListener('change', async (e)
     if (unmapped) notas.push(`${fmtNum(unmapped,1)} FCL sin transportista mapeado o sin corredor Terrestre (Connections) reconocido, excluidos`);
     if (consolidadosCount) notas.push(`${consolidadosCount} instruction(s) consolidada(s) (mismo camión, 2 Packing) enrutadas por orden de Dispatch Date`);
     setHorizonStatus(`✓ Horizon actualizado (${rows.length} filas)${notas.length ? ` · ${notas.join(' · ')}` : ''}`);
+    logActivity('horizon', `Carga Horizon: ${rows.length} fila(s) (reemplaza todo lo anterior)${notas.length ? ' · ' + notas.join(' · ') : ''}`, state.role === 'administrador' ? 'Adm. André' : null);
   } catch (err) {
     console.error('Error cargando Horizon:', err);
     setHorizonStatus('⚠ Error cargando Horizon (revisa la consola)');
@@ -2885,6 +2980,7 @@ function wireRowEvents() {
       btn.disabled = true; btn.textContent = 'Eliminando…';
       const result = await deleteOverrideVersion(key, routeObj, entryId);
       if (result === true) {
+        logActivity('eliminacion', `${routeObj.proveedor} — ${routeObj.ruta}: se eliminó la versión "${desc}"`, entry ? entry.updated_by : null);
         // Actualiza el estado local directo (en vez de re-consultar Supabase) — justo después de
         // un DELETE, a veces la siguiente consulta todavía devuelve el dato viejo (no llega a
         // tiempo la actualización), así que una recarga inmediata podía "revivir" en pantalla la

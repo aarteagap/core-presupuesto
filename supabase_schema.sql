@@ -117,3 +117,33 @@ do $$ begin
   alter publication supabase_realtime add table public.horizon_fcl;
 exception when duplicate_object then null;
 end $$;
+
+-- =====================================================================
+-- Fase 2c: Historial general de actividad (botón del reloj en el Dashboard).
+-- Registra ediciones/eliminaciones de tarifa y % de adjudicación, y cargas
+-- de Horizon — todo lo que modifica datos vivos en esta plataforma.
+-- =====================================================================
+create table if not exists public.activity_log (
+  id          bigint generated always as identity primary key,
+  tipo        text not null,              -- 'tarifa' | 'eliminacion' | 'horizon'
+  descripcion text not null,
+  updated_by  text,
+  creado_en   timestamptz not null default now()
+);
+
+create index if not exists idx_activity_log_creado_en
+  on public.activity_log (creado_en desc);
+
+alter table public.activity_log enable row level security;
+
+drop policy if exists "anon select activity_log" on public.activity_log;
+drop policy if exists "anon insert activity_log" on public.activity_log;
+create policy "anon select activity_log" on public.activity_log
+  for select using (true);
+create policy "anon insert activity_log" on public.activity_log
+  for insert with check (true);
+
+do $$ begin
+  alter publication supabase_realtime add table public.activity_log;
+exception when duplicate_object then null;
+end $$;
